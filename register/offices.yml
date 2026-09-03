@@ -1,0 +1,33 @@
+offices:
+  - id: registrar
+    title_en: Registrar
+    title_fr: Greffier
+    holder: c-0001
+    since: 2026-08-26
+    term_ends: 2027-08-26
+    established_under: art-06/§28/¶1
+    permissions: [register.admit, register.object, entity.register]
+  - id: keeper
+    title_en: Keeper of the Journal
+    title_fr: Gardien du Journal
+    holder: c-0002
+    since: 2026-08-26
+    term_ends: 2027-08-26
+    established_under: art-06/§28/¶1
+    permissions: [journal.publish, checkpoint.sign]
+  - id: treasurer
+    title_en: Treasurer
+    title_fr: Trésorier
+    holder: c-0003
+    since: 2026-08-26
+    term_ends: 2027-08-26
+    established_under: art-06/§28/¶1
+    permissions: [value.issue, treasury.disburse]
+  - id: auditor
+    title_en: Auditor
+    title_fr: Auditeur
+    holder: c-0004
+    since: 2026-08-26
+    term_ends: 2027-08-26
+    established_under: art-06/§28/¶1
+    permissions: [audit.report]

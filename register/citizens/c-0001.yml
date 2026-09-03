@@ -1,0 +1,7 @@
+id: c-0001
+status: active
+admitted: 2026-08-26
+admitted_under: art-11/§64/¶2
+supported_by: [c-0002, c-0003]
+keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIlQn3cK5xUN0zf8NMLVjedI5JyWjQodElkRHwvaajED c-0001

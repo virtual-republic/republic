@@ -1,0 +1,23 @@
+{
+  "name": "republic",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "CC0-1.0",
+  "scripts": {
+    "validate": "node tools/validate.js",
+    "tally": "node tools/tally.js",
+    "checkpoint": "node tools/checkpoint.js",
+    "verify": "node tools/verify.js",
+    "build": "node tools/build.js",
+    "keygen": "node tools/keygen.js",
+    "sign": "node tools/sign.js",
+    "seed": "node tools/seed.js",
+    "test": "node tools/test.js",
+    "sync:offices": "node tools/sync-offices.js",
+    "archive": "node tools/archive-deliberation.js"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

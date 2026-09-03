@@ -1,0 +1,7 @@
+id: c-0004
+status: active
+admitted: 2026-08-26
+admitted_under: art-11/§64/¶2
+supported_by: [c-0001, c-0002]
+keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICWVa9c87PHnTe4D911Qi1XHa7/Fba0O+r+O7nyM/WK4 c-0004

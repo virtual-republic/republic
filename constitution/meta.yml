@@ -1,0 +1,83 @@
+republic:
+  name_en: The Digital Republic
+  name_fr: La République Numérique
+  motto_en: By record and by consent
+  motto_fr: Par le registre et par le consentement
+  founded: 2026-08-26
+
+languages:
+  - code: en
+    name: English
+    authentic: true
+  - code: fr
+    name: Français
+    authentic: true
+
+# Equal authenticity: neither language version is the source of the other.
+# Both render the same numbered provisions.
+
+articles:
+  - id: art-00
+    file: 00-preamble
+    kind: preamble
+  - id: art-01
+    file: 01-foundations
+  - id: art-02
+    file: 02-invariants
+    entrenched: true
+  - id: art-03
+    file: 03-persons
+  - id: art-04
+    file: 04-entities
+  - id: art-05
+    file: 05-records
+  - id: art-06
+    file: 06-offices
+  - id: art-07
+    file: 07-rights
+    entrenched: true
+  - id: art-08
+    file: 08-process
+  - id: art-09
+    file: 09-value
+  - id: art-10
+    file: 10-fork
+  - id: art-11
+    file: 11-amendment
+    entrenched: true
+
+# Measure classes and the thresholds that apply to them.
+# tools/tally.js reads this. Changing it is a constitutional amendment.
+classes:
+  ordinary:
+    label_en: Ordinary measure
+    label_fr: Mesure ordinaire
+    quorum: 0.20
+    threshold: 0.50
+    window_days: 7
+  organic:
+    label_en: Organic statute
+    label_fr: Loi organique
+    quorum: 0.33
+    threshold: 0.6667
+    window_days: 14
+  amendment:
+    label_en: Constitutional amendment
+    label_fr: Amendement constitutionnel
+    quorum: 0.50
+    threshold: 0.6667
+    window_days: 21
+    successive: true
+  entrenched:
+    label_en: Entrenched provision
+    label_fr: Disposition protégée
+    quorum: 0.60
+    threshold: 0.75
+    window_days: 30
+    successive: true
+  election:
+    label_en: Election to office
+    label_fr: Élection
+    quorum: 0.33
+    method: irv
+    window_days: 7

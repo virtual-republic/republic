@@ -1,0 +1,8 @@
+id: c-0005
+status: active
+delegate_to: c-0001
+admitted: 2026-08-26
+admitted_under: art-11/§64/¶2
+supported_by: [c-0001, c-0002]
+keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOtYP2nKvKPNT0kCkkU2CwJrlGJQR247Ar15BP8PoZtU c-0005

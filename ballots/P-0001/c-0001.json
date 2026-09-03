@@ -1,0 +1,6 @@
+{
+  "proposal": "P-0001",
+  "choice": "yes",
+  "salt": "6a297a34ab04b6dcb0a6e0bd2c457df8",
+  "signature": "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgiVCfdwrnFQ3TN/w0wtWN50jknJ\naNCh0SWREfC9pqMQMAAAAIcmVwdWJsaWMAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVk\nMjU1MTkAAABAXCVGOLGcopcul2Zws7tN/0W5nag5kd22Cu07SX/iKHPh4MSiyOJzSvX/4F\nz/ZPRl2bhaPhOUIuAVf/PmaBWPDg==\n-----END SSH SIGNATURE-----\n"
+}

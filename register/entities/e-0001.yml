@@ -1,0 +1,12 @@
+id: e-0001
+type: association
+name_en: Society of the Register
+name_fr: Société du Registre
+formed: 2026-08-26
+formed_under: art-04/§19/¶1
+charter: charters/e-0001.md
+organs:
+  - name: convenor
+    held_by: [c-0005]
+members: [c-0001, c-0005]
+status: active
