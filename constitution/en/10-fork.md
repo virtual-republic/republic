@@ -9,7 +9,7 @@ an act of the Constitution and not a failure of it.*
 
 ## § 54  Right of Division
 
-¹ Any twenty citizens, or one fifth of the citizens, whichever is fewer, MAY declare a division.
+¹ Any citizen MAY declare a division.
 
 ² A declaration states the ground of division and the name the departing Republic will take.
 

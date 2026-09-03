@@ -8,6 +8,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { read, merkleRoot, verifyChain, GENESIS, canonical } from './lib/events.js';
 import { sign } from './lib/sshsig.js';
 
@@ -36,11 +38,41 @@ const body = {
   previous: prev ? prev.root : GENESIS,
 };
 
-const keyPath = process.env.REPUBLIC_KEY || 'private/keeper.pem';
-if (fs.existsSync(keyPath)) {
-  body.signature = sign(canonical(body), fs.readFileSync(keyPath, 'utf8'), { namespace: 'republic-checkpoint' });
+// Sign with whichever key the Keeper actually has. A PKCS8 PEM (from
+// tools/keygen.js) is signed in pure Node. An OpenSSH private key — the one
+// most people already have at ~/.ssh/id_ed25519 — is signed by ssh-keygen,
+// which produces the identical SSHSIG format.
+const candidates = [
+  process.env.REPUBLIC_KEY,
+  'private/keeper.pem',
+  path.join(os.homedir(), '.ssh/id_ed25519'),
+].filter(Boolean);
+
+const keyPath = candidates.find((f) => fs.existsSync(f));
+
+if (!keyPath) {
+  console.warn(`(no signing key found — checkpoint is unsigned)`);
 } else {
-  console.warn(`(no signing key at ${keyPath} — checkpoint is unsigned)`);
+  const material = fs.readFileSync(keyPath, 'utf8');
+  if (material.includes('BEGIN PRIVATE KEY')) {
+    body.signature = sign(canonical(body), material, { namespace: 'republic-checkpoint' });
+    console.log(`Signed with ${keyPath}`);
+  } else if (material.includes('BEGIN OPENSSH PRIVATE KEY')) {
+    const tmp = path.join(os.tmpdir(), `cp-${process.pid}`);
+    fs.writeFileSync(tmp, canonical(body));
+    try {
+      execFileSync('ssh-keygen', ['-Y', 'sign', '-q', '-f', keyPath, '-n', 'republic-checkpoint', tmp]);
+      body.signature = fs.readFileSync(`${tmp}.sig`, 'utf8');
+      console.log(`Signed with ${keyPath} via ssh-keygen`);
+    } catch (e) {
+      console.warn(`(ssh-keygen could not sign: ${e.message.split('\n')[0]} — checkpoint is unsigned)`);
+    } finally {
+      fs.rmSync(tmp, { force: true });
+      fs.rmSync(`${tmp}.sig`, { force: true });
+    }
+  } else {
+    console.warn(`(${keyPath} is not a recognised key format — checkpoint is unsigned)`);
+  }
 }
 
 const name = `checkpoints/${String(body.number).padStart(6, '0')}.json`;

@@ -39,3 +39,11 @@ entrenched: true
 ¹ This Constitution takes effect on its publication in the first issue of the Journal.
 
 ² The founding citizens are those named in the first record of the register.
+
+## § 65  Sufficiency
+
+¹ No provision of this Constitution requires more than one citizen to be given effect.
+
+² Where a provision speaks of citizens in the plural, it is satisfied by one.
+
+³ A Republic of one citizen is a Republic.

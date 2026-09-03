@@ -46,8 +46,14 @@ occur.*
 
 ³ No account MAY be debited except by its holder, by an assessment made under statute, or by an order of the Court.
 
-## § 13  Uniqueness
+## § 13  Plurality
 
-¹ One natural person holds not more than one citizenship.
+¹ A citizenship is a civic person, not a natural person.
 
-² Citizenship MUST NOT be transferred, sold, lent, or held on behalf of another.
+² One natural person MAY hold one or more citizenships. Each is distinct, acts separately, and votes separately.
+
+³ Each citizenship MUST have a key that no other citizenship holds.
+
+⁴ Citizenship MUST NOT be transferred, sold, or lent.
+
+⁵ The Republic makes no claim that its citizenships correspond one to one with natural persons, and no count of citizenships is a count of persons.

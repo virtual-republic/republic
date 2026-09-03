@@ -46,8 +46,14 @@ n'a pas lieu.*
 
 ³ Aucun compte NE PEUT être débité si ce n'est par son titulaire, par une imposition établie par la loi, ou par ordonnance de la Cour.
 
-## § 13  Unicité
+## § 13  Pluralité
 
-¹ Une personne physique ne détient pas plus d'une citoyenneté.
+¹ Une citoyenneté est une personne civique et non une personne physique.
 
-² La citoyenneté NE DOIT PAS être cédée, vendue, prêtée ni détenue pour le compte d'autrui.
+² Une personne physique PEUT détenir une ou plusieurs citoyennetés. Chacune est distincte, agit séparément et vote séparément.
+
+³ Chaque citoyenneté DOIT avoir une clé qu'aucune autre citoyenneté ne détient.
+
+⁴ La citoyenneté NE DOIT PAS être cédée, vendue ni prêtée.
+
+⁵ La République ne prétend pas que ses citoyennetés correspondent une à une à des personnes physiques, et aucun dénombrement de citoyennetés n'est un dénombrement de personnes.

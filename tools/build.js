@@ -15,6 +15,8 @@ const OUT = path.join(ROOT, 'dist');
 // Project pages serve from https://<org>.github.io/<repo>/ — set BASE_PATH=/<repo>
 // A custom domain or a <org>.github.io repo needs no BASE_PATH.
 const BASE = (process.env.BASE_PATH || '').replace(/\/$/, '');
+const REPO = process.env.GITHUB_REPOSITORY || 'virtual-republic/republic';
+const BRANCH = process.env.GITHUB_BRANCH || 'main';
 const u = (p) => BASE + p;
 
 const constitution = loadConstitution(ROOT);
@@ -46,6 +48,10 @@ const T = {
     formed: 'formed', admitted: 'admitted', permissions: 'permissions',
     root: 'root', number: 'no.', bothAuthentic: 'Both versions are authentic — art-01/§6/¶2',
     verifyHow: 'Clone the repository and run', notState: 'Not a state. Confers no legal status.',
+    vote: 'Vote', propose: 'Propose', join: 'Join', articles: 'Articles',
+    verifyHere: 'Verify in this browser', verifying: 'Verifying the register\u2026',
+    identity: 'Your citizenship', newKey: 'Create a citizenship', haveKey: 'Load a key',
+    openGitHub: 'Open on GitHub', download: 'Download key', forget: 'Forget key',
   },
   fr: {
     constitution: 'Constitution', journal: 'Journal', register: 'Registre',
@@ -147,7 +153,7 @@ const linkify = (lang, text) => {
   return out;
 };
 
-function page(lang, title, body, { active = '', wide = false } = {}) {
+function page(lang, title, body, { active = '', wide = false, script = '', side = '' } = {}) {
   const t = T[lang];
   const other = lang === 'en' ? 'fr' : 'en';
   const nav = [
@@ -155,6 +161,7 @@ function page(lang, title, body, { active = '', wide = false } = {}) {
     ['register', t.register], ['ledger', t.ledger], ['proposals', t.proposals],
     ['checkpoints', t.checkpoints],
   ];
+  const acts = [['vote', t.vote], ['propose', t.propose], ['join', t.join]];
   return `<!doctype html>
 <html lang="${lang}">
 <meta charset="utf-8">
@@ -169,10 +176,12 @@ function page(lang, title, body, { active = '', wide = false } = {}) {
   </div>
   <nav>
     ${nav.map(([slug, label]) => `<a href="${u(`/${lang}/${slug}${slug ? '/' : ''}`)}"${active === slug ? ' class="on"' : ''}>${esc(label)}</a>`).join('')}
+    ${acts.map(([slug, label]) => `<a class="act" href="${u(`/${lang}/${slug}/`)}"${active === slug ? ' class="on"' : ''}>${esc(label)}</a>`).join('')}
     <a class="lang" href="${u(`/${other}/`)}">${other.toUpperCase()}</a>
   </nav>
 </header>
-<main>${body}</main>
+<main>${side ? `<div class="withside"><aside class="side">${side}</aside><div>${body}</div></div>` : body}</main>
+${script ? `<script type="module">${script}</script>` : ''}
 <footer>
   <div class="state ${chain.ok ? 'good' : 'bad'}">
     ${chain.ok ? '✓ ' + esc(t.verified) : '✗ ' + esc(t.notVerified)} ·
@@ -236,6 +245,11 @@ for (const lang of constitution.langs) {
       <p><a class="more" href="${u(`/${lang}/ledger/`)}">${esc(t.ledger)} →</a></p>
     </section>`, { active: '' }));
 
+  const toc = (currentId) => `<h3>${esc(t.articles)}</h3><ol>` + constitution.articles.map((a) => {
+    const v = a.versions[lang] || a.versions.en;
+    return `<li><a href="${provHref(lang, a.id)}"${a.id === currentId ? ' class="on"' : ''}><span class="artno">${esc(a.id.replace('art-',''))}</span>${esc(v.title)}</a></li>`;
+  }).join('') + '</ol>';
+
   // constitution index
   write(`${lang}/constitution`, page(lang, t.constitution, `
     <h1>${esc(t.constitution)}</h1>
@@ -248,7 +262,7 @@ for (const lang of constitution.langs) {
         ${a.entrenched ? '<span class="tag">entrenched</span>' : ''}
         ${missing ? `<span class="tag warn">${esc(t.pending)}</span>` : ''}
       </li>`;
-    }).join('')}</ol>`, { active: 'constitution' }));
+    }).join('')}</ol>`, { active: 'constitution', side: toc(null) }));
 
   // article and provision pages
   for (const art of constitution.articles) {
@@ -272,7 +286,7 @@ for (const lang of constitution.langs) {
               ${linkify(lang, p.text)}</p>`).join('')}
           </section>`).join('')}
       </article>`;
-    write(provPath(lang, art.id), page(lang, `${art.id} · ${v.title}`, body, { active: 'constitution' }));
+    write(provPath(lang, art.id), page(lang, `${art.id} · ${v.title}`, body, { active: 'constitution', side: toc(art.id) }));
 
     for (const sec of v.sections) {
       for (const target of [{ id: `${art.id}/§${sec.num}`, label: `§ ${sec.num} ${sec.heading}`, paras: sec.paragraphs },
@@ -306,7 +320,7 @@ for (const lang of constitution.langs) {
             ${links.length ? `<ul class="plain">${links.map((l) => `<li><span class="badge ${l.type}">${esc(l.type)}</span>
               <a href="${u(`/${lang}${l.href}`)}">${esc(l.label)}</a> <time>${esc(String(l.at || '').slice(0, 10))}</time></li>`).join('')}</ul>`
               : `<p class="empty">${esc(t.noActs)}</p>`}
-          </section>`, { active: 'constitution' }));
+          </section>`, { active: 'constitution', side: toc(art.id) }));
       }
     }
   }
@@ -383,6 +397,7 @@ for (const lang of constitution.langs) {
   // checkpoints
   write(`${lang}/checkpoints`, page(lang, t.checkpoints, `
     <h1>${esc(t.checkpoints)}</h1>
+    <div class="verifybar" id="vbar"><span class="dot"></span><span id="vtext">${esc(t.verifying)}</span></div>
     <p class="note">art-02/§10/¶3 — ${lang === 'fr' ? 'vérifiable par toute personne, sans autorisation et sans compte.' : 'verifiable by any person, without permission and without an account.'}</p>
     <table class="grid"><thead><tr><th>${esc(t.number)}</th><th>${esc(t.at)}</th><th>${esc(t.records)}</th><th>${esc(t.root)}</th><th>signed</th></tr></thead>
     <tbody>${checkpoints.slice().reverse().map((c) => `<tr>
@@ -391,8 +406,220 @@ for (const lang of constitution.langs) {
       <td>${c.signature ? '✓' : '—'}</td></tr>`).join('')}</tbody></table>
     <pre class="cmd">git clone &lt;repository&gt;
 cd republic &amp;&amp; npm install
-npm run verify</pre>`, { active: 'checkpoints' }));
+npm run verify</pre>`, { active: 'checkpoints', script: `
+    import * as R from '${u('/republic.js')}';
+    const bar = document.getElementById('vbar'), text = document.getElementById('vtext');
+    try {
+      const events = await (await fetch('${u('/data/events.jsonl')}')).text();
+      const r = await R.verifyRegister(events);
+      const root = await R.merkleRoot(r.events.map((e) => e.hash));
+      bar.classList.add(r.ok ? 'good' : 'bad');
+      text.textContent = r.ok
+        ? r.count + ' records verified in this browser \u00b7 head ' + r.head.slice(0, 16) + '\u2026 \u00b7 root ' + root.slice(0, 16) + '\u2026'
+        : r.problems.length + ' problem(s): ' + r.problems.map((p) => 'record ' + p.seq + ' ' + p.error).join('; ');
+    } catch (e) {
+      bar.classList.add('bad');
+      text.textContent = 'could not verify: ' + e.message;
+    }` }));
 }
+
+
+// ---- client data + interactive pages -------------------------------------
+
+fs.mkdirSync(path.join(OUT, 'data'), { recursive: true });
+fs.writeFileSync(path.join(OUT, 'data/proposals.json'), JSON.stringify(
+  proposals.map((p) => ({ id: p.id, title: p.title, class: p.class, cites: [].concat(p.cites || []), carried: p.result?.outcome?.carried ?? null })), null, 2));
+fs.writeFileSync(path.join(OUT, 'data/citizens.json'), JSON.stringify(
+  roll.map((c) => ({ id: c.id, status: c.status, admitted: c.admitted, keys: c.keys || [] })), null, 2));
+fs.writeFileSync(path.join(OUT, 'data/meta.json'), JSON.stringify(
+  { repo: REPO, branch: BRANCH, base: BASE, classes: meta.classes, electorate: active.length }, null, 2));
+fs.copyFileSync(path.join(ROOT, 'site/republic.js'), path.join(OUT, 'republic.js'));
+fs.copyFileSync(path.join(ROOT, 'ledger/events.jsonl'), path.join(OUT, 'data/events.jsonl'));
+
+const IDENTITY = (lang) => `
+<section class="panel" id="identity">
+  <h2>${T[lang].identity}</h2>
+  <div id="who" class="status">no citizenship loaded in this browser</div>
+  <div class="row">
+    <button id="gen">${T[lang].newKey}</button>
+    <button id="load" class="ghost">${T[lang].haveKey}</button>
+    <button id="forget" class="ghost">${T[lang].forget}</button>
+  </div>
+  <label for="pem" hidden>key</label>
+  <textarea id="pem" hidden placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+  <div id="pub" class="out" hidden></div>
+  <p class="identity">The key is generated here and stays in this browser. Nothing is sent anywhere.
+  One person may hold several citizenships — art-02/&sect;13/&para;2.</p>
+</section>`;
+
+const IDENTITY_JS = `
+import * as R from '${u('/republic.js')}';
+const $ = (id) => document.getElementById(id);
+const meta = await (await fetch('${u('/data/meta.json')}')).json();
+let priv = null, pubLine = null, citizenId = null;
+
+async function adopt(pemText, id) {
+  priv = await R.importPrivateKey(pemText);
+  pubLine = R.publicKeyLine(priv.raw, id || '');
+  const roll = await (await fetch('${u('/data/citizens.json')}')).json();
+  const match = roll.find((c) => (c.keys || []).some((k) => k.split(/\\s+/)[1] === pubLine.split(/\\s+/)[1]));
+  citizenId = match ? match.id : (id || null);
+  $('who').textContent = match
+    ? 'signed in as ' + match.id + ' (on the register)'
+    : 'key loaded, not yet on the register — use Join';
+  $('who').className = 'status';
+  $('pub').hidden = false;
+  $('pub').textContent = pubLine;
+  document.dispatchEvent(new CustomEvent('identity', { detail: { priv, pubLine, citizenId } }));
+}
+
+$('gen').onclick = async () => {
+  const kp = await R.generateKey('');
+  R.vault.save(null, kp.privateKeyB64);
+  const blob = new Blob([kp.privateKeyPem], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'citizenship-key.pem'; a.click();
+  await adopt(kp.privateKeyPem, '');
+};
+$('load').onclick = () => { $('pem').hidden = !$('pem').hidden; $('pem').focus(); };
+$('pem').onchange = async () => { try { R.vault.save(null, $('pem').value); await adopt($('pem').value, ''); } catch (e) { $('who').textContent = 'that key could not be read'; $('who').className = 'status bad'; } };
+$('forget').onclick = () => { R.vault.clear(); location.reload(); };
+
+const held = R.vault.load();
+if (held) { try { await adopt('-----BEGIN PRIVATE KEY-----\\n' + held.key + '\\n-----END PRIVATE KEY-----', held.id); } catch {} }
+if (!R.supported()) { $('who').textContent = 'this browser has no Web Crypto'; $('who').className = 'status bad'; }
+`;
+
+for (const lang of constitution.langs) {
+  const t = T[lang];
+
+  // ---- vote -------------------------------------------------------------
+  write(`${lang}/vote`, page(lang, t.vote, `
+    <h1>${esc(t.vote)}</h1>
+    <p class="note">art-08/&sect;43/&para;2 — a ballot not verified against a registered key is not counted.
+    Your ballot is signed in this browser and committed by you on GitHub. Nothing passes through a server.</p>
+    ${IDENTITY(lang)}
+    <section class="panel">
+      <h2>${esc(t.vote)}</h2>
+      <label for="measure">measure</label>
+      <select id="measure"></select>
+      <label>choice</label>
+      <div class="choices">
+        <button data-choice="yes" aria-pressed="false">yes</button>
+        <button data-choice="no" aria-pressed="false">no</button>
+        <button data-choice="abstain" aria-pressed="false">abstain</button>
+      </div>
+      <div class="row">
+        <button id="sign" disabled>sign ballot</button>
+        <a id="commit" class="btn" hidden>${esc(t.openGitHub)}</a>
+      </div>
+      <div id="result" class="out" hidden></div>
+    </section>`, { active: 'vote', script: IDENTITY_JS + `
+    const proposals = await (await fetch('${u('/data/proposals.json')}')).json();
+    const sel = $('measure');
+    sel.innerHTML = proposals.map((p) => '<option value="' + p.id + '">' + p.id + ' — ' + p.title + '</option>').join('')
+      || '<option value="">no measures before the Assembly</option>';
+    let choice = null;
+    for (const b of document.querySelectorAll('.choices button')) {
+      b.onclick = () => {
+        choice = b.dataset.choice;
+        for (const x of document.querySelectorAll('.choices button')) x.setAttribute('aria-pressed', String(x === b));
+        $('sign').disabled = !(choice && priv);
+      };
+    }
+    document.addEventListener('identity', () => { $('sign').disabled = !(choice && priv); });
+    $('sign').onclick = async () => {
+      const { ballot, receipt } = await R.makeBallot(sel.value, choice, priv);
+      $('result').hidden = false;
+      $('result').textContent = 'receipt ' + receipt + '\\n\\n' + JSON.stringify(ballot, null, 2);
+      const link = $('commit');
+      link.href = R.commitUrl(meta.repo, meta.branch,
+        'ballots/' + sel.value + '/' + (citizenId || 'unregistered') + '.json',
+        JSON.stringify(ballot, null, 2),
+        'ballot: ' + sel.value + ' (art-08/\\u00a743)');
+      link.hidden = false;
+    };` }));
+
+  // ---- propose ----------------------------------------------------------
+  write(`${lang}/propose`, page(lang, t.propose, `
+    <h1>${esc(t.propose)}</h1>
+    <p class="note">art-08/&sect;41/&para;3 — a proposal that does not cite a resolvable provision is not received.
+    Citations are checked here before you commit, and again by the workflow afterwards.</p>
+    <section class="panel">
+      <label for="pid">identifier</label><input type="text" id="pid" value="P-0002">
+      <label for="ptitle">title</label><input type="text" id="ptitle" placeholder="Organic Statute on \\u2026">
+      <label for="pclass">class</label><select id="pclass"></select>
+      <label for="pcites">cites — one provision per line, e.g. art-09/&sect;48/&para;1</label>
+      <textarea id="pcites" style="min-height:5rem"></textarea>
+      <label for="pbody">text</label><textarea id="pbody" style="min-height:12rem"></textarea>
+      <div class="row">
+        <button id="check">check citations</button>
+        <a id="pcommit" class="btn" hidden>${esc(t.openGitHub)}</a>
+      </div>
+      <div id="pstatus" class="status"></div>
+      <div id="preview" class="out" hidden></div>
+    </section>`, { active: 'propose', script: `
+    import * as R from '${u('/republic.js')}';
+    const $ = (id) => document.getElementById(id);
+    const meta = await (await fetch('${u('/data/meta.json')}')).json();
+    const index = await (await fetch('${u('/data/provisions.json')}')).json();
+    $('pclass').innerHTML = Object.entries(meta.classes)
+      .map(([k, v]) => '<option value="' + k + '">' + (v.label_${lang} || k) + '</option>').join('');
+    $('check').onclick = () => {
+      const cites = $('pcites').value.split('\\n').map((c) => c.trim()).filter(Boolean);
+      const bad = cites.filter((c) => !index.includes(c));
+      if (!cites.length) { $('pstatus').className = 'status bad'; $('pstatus').textContent = 'cites nothing — not received (art-08/\\u00a741/\\u00b63)'; $('pcommit').hidden = true; return; }
+      if (bad.length) { $('pstatus').className = 'status bad'; $('pstatus').textContent = 'does not resolve: ' + bad.join(', '); $('pcommit').hidden = true; return; }
+      const md = ['---', 'id: ' + $('pid').value, 'title: ' + $('ptitle').value,
+        'sponsor: ' + (R.vault.load()?.id || 'c-0001'), 'class: ' + $('pclass').value, 'cites:',
+        ...cites.map((c) => '  - ' + c), 'opened: ' + new Date().toISOString().slice(0, 10), '---', '',
+        '## Text', '', $('pbody').value, ''].join('\\n');
+      $('pstatus').className = 'status'; $('pstatus').textContent = 'all citations resolve — received';
+      $('preview').hidden = false; $('preview').textContent = md;
+      const link = $('pcommit');
+      link.href = R.commitUrl(meta.repo, meta.branch,
+        'proposals/' + $('pid').value + '-' + ($('ptitle').value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'measure') + '.md',
+        md, 'propose: ' + $('pid').value + ' (art-08/\\u00a741)');
+      link.hidden = false;
+    };` }));
+
+  // ---- join -------------------------------------------------------------
+  write(`${lang}/join`, page(lang, t.join, `
+    <h1>${esc(t.join)}</h1>
+    <p class="note">art-03/&sect;16/&para;3 — admission takes effect on the recording of the application.
+    No support, sponsorship, or seconding is required. You may hold more than one citizenship (art-02/&sect;13/&para;2).</p>
+    ${IDENTITY(lang)}
+    <section class="panel">
+      <h2>${esc(t.join)}</h2>
+      <label for="newid">identifier</label><input type="text" id="newid" placeholder="c-0002">
+      <p class="identity">No name, no email, nothing personal goes on the register — art-07/&sect;37/&para;2.</p>
+      <div class="row">
+        <button id="apply" disabled>prepare application</button>
+        <a id="jcommit" class="btn" hidden>${esc(t.openGitHub)}</a>
+      </div>
+      <div id="jout" class="out" hidden></div>
+    </section>`, { active: 'join', script: IDENTITY_JS + `
+    const roll = await (await fetch('${u('/data/citizens.json')}')).json();
+    const next = 'c-' + String(roll.length + 1).padStart(4, '0');
+    $('newid').value = next;
+    document.addEventListener('identity', () => { $('apply').disabled = !priv; });
+    $('apply').disabled = !priv;
+    $('apply').onclick = () => {
+      const id = $('newid').value.trim();
+      const line = R.publicKeyLine(priv.raw, id);
+      const yml = ['id: ' + id, 'status: active', 'admitted: ' + new Date().toISOString().slice(0, 10),
+        'admitted_under: art-03/\\u00a716/\\u00b63', 'keys:', '  - ' + line, ''].join('\\n');
+      $('jout').hidden = false; $('jout').textContent = yml;
+      const link = $('jcommit');
+      link.href = R.commitUrl(meta.repo, meta.branch, 'register/citizens/' + id + '.yml', yml,
+        'admit ' + id + ' (art-03/\\u00a716)');
+      link.hidden = false;
+    };` }));
+}
+
+// provision index for the client-side citation check
+fs.writeFileSync(path.join(OUT, 'data/provisions.json'), JSON.stringify([...index.keys()], null, 2));
+
 
 const count = countFiles(OUT);
 console.log(`Built ${count} pages into dist/`);

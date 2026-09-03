@@ -88,16 +88,28 @@ t('art-02/§12/¶2', 'transfers neither create nor destroy value', () => {
   assert(total === issued, `total holdings ${total} \u2260 total issued ${issued}`);
 });
 
-t('art-02/§13/¶1', 'no person holds more than one citizenship', () => {
-  const seen = new Set();
+t('art-02/\u00a713/\u00b63', 'each citizenship holds a key no other holds', () => {
+  const ids = new Set();
+  const keys = new Map();
   for (const c of activeCitizens(ROOT)) {
-    assert(!seen.has(c.id), `duplicate citizen ${c.id}`);
-    seen.add(c.id);
+    assert(!ids.has(c.id), `duplicate citizenship ${c.id}`);
+    ids.add(c.id);
     for (const k of c.keys || []) {
       const raw = parsePublicKey(k).raw.toString('hex');
-      assert(!seen.has(raw), `key reused across citizens: ${c.id}`);
-      seen.add(raw);
+      assert(!keys.has(raw), `key shared by ${keys.get(raw)} and ${c.id}`);
+      keys.set(raw, c.id);
     }
+  }
+});
+
+t('art-11/\u00a765/\u00b63', 'a Republic of one citizen is a Republic', () => {
+  const roll = activeCitizens(ROOT);
+  assert(roll.length >= 1, 'no citizens on the register');
+  // Every class must be capable of carrying with the citizens that exist.
+  const { classes } = loadConstitution(ROOT).meta;
+  for (const [name, spec] of Object.entries(classes)) {
+    const needed = Math.ceil(spec.quorum * roll.length);
+    assert(needed <= roll.length, `class "${name}" needs ${needed} ballots from ${roll.length} citizens`);
   }
 });
 

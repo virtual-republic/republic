@@ -35,11 +35,13 @@ title: Deliberation and Decision
 
 ¹ A measure carries if the votes cast satisfy the quorum and the threshold fixed for its class.
 
-² All ballots are published at the close, with the material by which each citizen MAY confirm their own.
+² Quorum is reckoned against the number of citizenships on the register. Because one person may hold several, quorum is not a count of persons, and Article 2 § 13 ⁵ applies.
 
-³ The tally MUST be reproducible by any person from the published ballots.
+³ All ballots are published at the close, with the material by which each citizen MAY confirm their own.
 
-⁴ The tally is performed by the published tool, and the tool's result is the result.
+⁴ The tally MUST be reproducible by any person from the published ballots.
+
+⁵ The tally is performed by the published tool, and the tool's result is the result.
 
 ## § 45  Enactment
 

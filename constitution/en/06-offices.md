@@ -15,7 +15,7 @@ title: Offices
 
 ¹ An office is held for one year and is filled by election under Article 8.
 
-² No citizen holds more than one office at a time.
+² A citizen MAY hold more than one office.
 
 ³ An office-holder MAY be recalled by the procedure for their election.
 
@@ -31,7 +31,7 @@ title: Offices
 
 ## § 31  The Court
 
-¹ The Court consists of three Judges, elected under Article 8.
+¹ The Court consists of one or more Judges, elected under Article 8. Where no Judge is elected, its functions are exercised by the Assembly.
 
 ² The Court decides disputes arising under this Constitution, reviews acts for consistency with it, and construes the authentic language versions under Article 1 § 6.
 

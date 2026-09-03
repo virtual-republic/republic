@@ -19,13 +19,13 @@ title: Persons and Citizens
 
 ## § 16  Admission
 
-¹ Any person of sixteen years or more MAY apply for citizenship.
+¹ Any person of sixteen years or more MAY apply for citizenship, whether or not they already hold one.
 
-² An application is made by a record adding the applicant to the register, and MUST be supported by not fewer than two citizens who sign it.
+² An application is made by a record adding the applicant to the register, signed by the key the citizenship will hold.
 
-³ A supporting citizen states that they have satisfied themselves that the applicant is a natural person who holds no other citizenship of the Republic.
+³ Admission takes effect on the recording of the application. No support, sponsorship, or seconding is required.
 
-⁴ Admission takes effect seven days after application, unless the Registrar or five citizens object, in which case the Assembly decides.
+⁴ The Registrar MAY object within seven days, on grounds fixed by organic statute, and the Assembly then decides.
 
 ⁵ Admission MUST NOT be refused on grounds of nationality, residence, ancestry, ethnicity, sex, gender, sexual orientation, religion, belief, disability, age above the minimum, or language.
 
@@ -35,7 +35,7 @@ title: Persons and Citizens
 
 ² A citizen MAY rotate their key by a record signed with the key replaced.
 
-³ Where a key is lost, the citizen MAY be restored by a record signed by not fewer than three citizens, of whom at least one supported the original admission.
+³ Where a key is lost, the citizen MAY be restored by a record signed by any recovery key the citizen registered, or, failing that, by the Registrar.
 
 ⁴ A citizen SHOULD register a second key held apart from the first.
 

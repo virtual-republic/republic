@@ -15,7 +15,8 @@
     "seed": "node tools/seed.js",
     "test": "node tools/test.js",
     "sync:offices": "node tools/sync-offices.js",
-    "archive": "node tools/archive-deliberation.js"
+    "archive": "node tools/archive-deliberation.js",
+    "found": "node tools/found.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
