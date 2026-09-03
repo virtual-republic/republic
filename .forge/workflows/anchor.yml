@@ -1,0 +1,30 @@
+# Third-party timestamping of the latest checkpoint. Free, no wallet, no token.
+# OpenTimestamps aggregates and anchors to Bitcoin; the .ots receipt proves the
+# checkpoint existed at a given time, independently of GitHub.
+name: Anchor checkpoint
+on:
+  push: { paths: ['checkpoints/**'] }
+  workflow_dispatch:
+
+jobs:
+  anchor:
+    runs-on: ubuntu-latest
+    permissions: { contents: write, pull-requests: write }
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet opentimestamps-client
+      - name: Stamp the newest checkpoint
+        run: |
+          LATEST=$(ls checkpoints/*.json | sort | tail -1)
+          ots stamp "$LATEST"
+          ls -la checkpoints/
+      - env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          git config user.name "Keeper of the Journal"
+          git config user.email "keeper@users.noreply.github.com"
+          git checkout -b "anchor/$(date -u +%s)"
+          git add checkpoints/*.ots
+          git diff --cached --quiet && exit 0
+          git commit -m "anchor checkpoint (independent timestamp)"
+          git push -u origin HEAD
+          gh pr create --fill --base "${{ github.event.repository.default_branch }}"

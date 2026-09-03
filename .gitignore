@@ -1,0 +1,5 @@
+# Personal data and keys. art-07/§37/¶2 requires that personal data be held
+# apart from the register. This directory is that "apart".
+private/
+node_modules/
+dist/

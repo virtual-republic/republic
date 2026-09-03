@@ -1,0 +1,16 @@
+# art-02/§9 — a record, once committed, must not be altered.
+# Runs on every push. If history has been rewritten, this fails loudly and in
+# public, which is the guarantee: detection, not prevention.
+name: Verify register
+on: [push, pull_request]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci --omit=dev || npm install --omit=dev
+      - run: node tools/verify.js
+      - run: node tools/test.js

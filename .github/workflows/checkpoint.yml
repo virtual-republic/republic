@@ -1,0 +1,41 @@
+# art-02/§10/¶2 — a signed checkpoint at intervals of not more than one week.
+#
+# Note it opens a pull request rather than pushing to main. A workflow with
+# push access that bypasses branch protection IS the "who holds merge rights"
+# problem in another costume. This way the checkpoint is proposed like anything
+# else and the protection stays intact.
+name: Checkpoint
+on:
+  schedule: [{ cron: '0 0 * * 0' }]
+  workflow_dispatch:
+
+jobs:
+  checkpoint:
+    runs-on: ubuntu-latest
+    permissions: { contents: write, pull-requests: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci --omit=dev || npm install --omit=dev
+      - run: node tools/verify.js
+      - name: Sign
+        env: { KEEPER_KEY: "${{ secrets.KEEPER_KEY }}" }
+        run: |
+          mkdir -p private && printf '%s' "$KEEPER_KEY" > private/keeper.pem
+          node tools/checkpoint.js
+          shred -u private/keeper.pem 2>/dev/null || rm -f private/keeper.pem
+      - name: Propose
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          BR="checkpoint/$(date -u +%Y-%m-%d)"
+          git config user.name  "Keeper of the Journal"
+          git config user.email "keeper@users.noreply.github.com"
+          git checkout -b "$BR"
+          git add checkpoints/
+          git diff --cached --quiet && { echo "nothing to publish"; exit 0; }
+          git commit -m "checkpoint (art-02/§10/¶2)"
+          git push -u origin "$BR"
+          gh pr create --title "Checkpoint $(date -u +%Y-%m-%d)" \
+            --body "Published under art-02/§10/¶2. Verify with \`npm run verify\`." \
+            --base "${{ github.event.repository.default_branch }}"

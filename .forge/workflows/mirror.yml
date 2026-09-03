@@ -1,0 +1,27 @@
+# art-01/§5/¶4 — the repository shall be maintained on not fewer than two
+# independent hosts. GitHub alone does not satisfy the Constitution.
+#
+# Set MIRROR_URL (e.g. https://codeberg.org/<org>/republic.git) and
+# MIRROR_TOKEN in repository secrets.
+name: Mirror
+on:
+  push: { branches: [main] }
+  schedule: [{ cron: '0 3 * * *' }]
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Push to the second host
+        env:
+          MIRROR_URL: "${{ secrets.MIRROR_URL }}"
+          MIRROR_TOKEN: "${{ secrets.MIRROR_TOKEN }}"
+        run: |
+          if [ -z "$MIRROR_URL" ]; then
+            echo "::error::art-01/§5/¶4 requires a second host. Set MIRROR_URL."
+            exit 1
+          fi
+          git push --mirror "$(echo "$MIRROR_URL" | sed "s#https://#https://x-access-token:$MIRROR_TOKEN@#")"

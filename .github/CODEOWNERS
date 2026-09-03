@@ -1,0 +1,13 @@
+# Offices as repository permissions (art-06/§28/¶3).
+# The register is authoritative; this file is a projection of it.
+# Run `npm run sync:offices <org>` to detect drift.
+
+/constitution/          @ORG/registrar @ORG/keeper
+/register/citizens/     @ORG/registrar
+/register/entities/     @ORG/registrar
+/register/offices.yml   @ORG/registrar
+/ledger/                @ORG/keeper
+/journal/               @ORG/keeper
+/checkpoints/           @ORG/keeper
+/tools/                 @ORG/auditor @ORG/keeper
+/.github/workflows/     @ORG/auditor @ORG/keeper

@@ -1,0 +1,36 @@
+# art-08/§44/¶4 — the tally is performed by the published tool, and the tool's
+# result is the result.
+name: Tally
+on:
+  workflow_dispatch:
+    inputs:
+      proposal: { description: 'Proposal id, e.g. P-0001', required: true }
+
+jobs:
+  tally:
+    runs-on: ubuntu-latest
+    permissions: { contents: write, pull-requests: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci --omit=dev || npm install --omit=dev
+      - name: Count
+        run: node tools/tally.js "${{ inputs.proposal }}" | tee tally.txt
+        continue-on-error: true
+      - name: Publish the count
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          BR="tally/${{ inputs.proposal }}"
+          git config user.name  "Keeper of the Journal"
+          git config user.email "keeper@users.noreply.github.com"
+          git checkout -b "$BR"
+          git add ballots/
+          git diff --cached --quiet && exit 0
+          git commit -m "tally: ${{ inputs.proposal }} (art-08/§44)"
+          git push -u origin "$BR" --force
+          gh pr create --title "Tally — ${{ inputs.proposal }}" --body-file tally.txt \
+            --base "${{ github.event.repository.default_branch }}" || \
+          gh pr edit "$BR" --body-file tally.txt
+      - name: Post the count to the discussion
+        run: cat tally.txt >> $GITHUB_STEP_SUMMARY
