@@ -120,7 +120,11 @@ if (fs.existsSync(propDir)) {
 const esc = (s) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const provHref = (lang, id) => u(`/${lang}/constitution/${id.replace(/§/g, 's').replace(/¶/g, 'p').replace(/\//g, '-')}/`);
+const provSlug = (id) => id.replace(/\u00a7/g, 's').replace(/\u00b6/g, 'p').replace(/\//g, '-');
+// The URL carries the base prefix; the output path must never carry it,
+// or the pages land one directory too deep and every link 404s.
+const provHref = (lang, id) => u(`/${lang}/constitution/${provSlug(id)}/`);
+const provPath = (lang, id) => `${lang}/constitution/${provSlug(id)}`;
 
 // Turn "art-02/§9/¶1" inside prose into a link.
 const CITE_RE = /\b(art-\d{2})(?:\/(§\d+))?(?:\/(¶\d+))?/g;
@@ -268,7 +272,7 @@ for (const lang of constitution.langs) {
               ${linkify(lang, p.text)}</p>`).join('')}
           </section>`).join('')}
       </article>`;
-    write(provHref(lang, art.id).slice(1), page(lang, `${art.id} · ${v.title}`, body, { active: 'constitution' }));
+    write(provPath(lang, art.id), page(lang, `${art.id} · ${v.title}`, body, { active: 'constitution' }));
 
     for (const sec of v.sections) {
       for (const target of [{ id: `${art.id}/§${sec.num}`, label: `§ ${sec.num} ${sec.heading}`, paras: sec.paragraphs },
@@ -285,7 +289,7 @@ for (const lang of constitution.langs) {
           return { lang: l, heading: s.heading, paras };
         }).filter(Boolean);
 
-        write(provHref(lang, target.id).slice(1), page(lang, target.id, `
+        write(provPath(lang, target.id), page(lang, target.id, `
           <nav class="crumb"><a href="${u(`/${lang}/constitution/`)}">${esc(t.constitution)}</a> ›
             <a href="${provHref(lang, art.id)}">${esc(art.id)}</a> › <span>${esc(target.label)}</span></nav>
           <h1 class="provid">${esc(target.id)}</h1>
