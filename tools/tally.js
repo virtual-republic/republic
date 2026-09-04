@@ -54,10 +54,7 @@ const closes = front.closes
 const now = new Date();
 const open = closes ? now < closes : true;
 
-if (open && !provisional) {
-  console.log(`Voting is open until ${closes.toISOString().slice(0, 16).replace('T', ' ')}Z.`);
-  console.log(`A count now is provisional (art-08/§43/¶1).\n`);
-}
+
 
 // --- collect ---------------------------------------------------------------
 
@@ -120,6 +117,46 @@ for (const c of roll) {
 
 const cast = [...weights.values()].reduce((a, b) => a + b, 0);
 
+// --- early closing (art-08/§43/¶5–¶6) --------------------------------------
+//
+// Waiting has a purpose only while the outcome can still move. Once every
+// citizenship has voted, or once no distribution of the remaining ballots
+// could change the result, the measure is closed for all purposes.
+
+function earlyClose(yes, no, abstain) {
+  const ec = rules.early_close || {};
+  if (!ec.enabled) return null;
+
+  const N = roll.length;
+  const remaining = N - cast;
+  const participation = N ? cast / N : 0;
+  if (participation < (ec.minimum_participation ?? 1)) return null;
+
+  if (ec.on_full_participation && remaining <= 0) {
+    return { closed: true, why: 'every citizenship has voted (art-08/§43/¶6)' };
+  }
+
+  if (ec.on_determined_outcome) {
+    const quorumNeeded = Math.ceil(spec.quorum * N);
+    // Threshold is decided by yes and no alone; abstentions move only quorum,
+    // so the extremes are all-remaining-yes and all-remaining-no.
+    const carries = (y, n) => {
+      const decisive = y + n;
+      return (cast + remaining) >= quorumNeeded && decisive > 0 && y / decisive >= spec.threshold;
+    };
+    const best = carries(yes + remaining, no);
+    const worst = carries(yes, no + remaining);
+    // Quorum can no longer be reached at all.
+    if (cast + remaining < quorumNeeded) return { closed: true, why: 'quorum can no longer be reached (art-08/§43/¶6)' };
+    if (best === worst) {
+      return { closed: true, why: best
+        ? 'the measure carries however the remaining ballots are cast (art-08/§43/¶6)'
+        : 'the measure fails however the remaining ballots are cast (art-08/§43/¶6)' };
+    }
+  }
+  return null;
+}
+
 // --- count -----------------------------------------------------------------
 
 const isElection = front.class === 'election';
@@ -127,7 +164,9 @@ let outcome;
 
 if (isElection) {
   outcome = instantRunoff(counted, weights, front.candidates || []);
-  outcome.open = open;
+  const early = earlyClose(cast, 0, 0);
+  outcome.open = open && !(cast >= roll.length && (rules.early_close || {}).on_full_participation);
+  outcome.early = outcome.open ? null : (early ? early.why : null);
 } else {
   const t = {};
   for (const b of counted) t[b.choice] = (t[b.choice] || 0) + (weights.get(b.citizenId) || 1);
@@ -137,11 +176,14 @@ if (isElection) {
   const quorumMet = cast >= quorumNeeded;
   const share = decisive ? yes / decisive : 0;
   const thresholdMet = share >= spec.threshold;
+  const early = earlyClose(yes, no, abstain);
+  const stillOpen = open && !early;
   outcome = {
     yes, no, abstain, cast, electorate: roll.length,
     quorumNeeded, quorumMet, share, threshold: spec.threshold, thresholdMet,
-    carried: quorumMet && thresholdMet && !open,
-    open, closes: closes ? closes.toISOString() : null,
+    carried: quorumMet && thresholdMet && !stillOpen,
+    open: stillOpen, early: early ? early.why : null,
+    closes: closes ? closes.toISOString() : null,
   };
 }
 
@@ -149,7 +191,7 @@ if (isElection) {
 
 console.log(`${front.id} — ${front.title || front.title_en || ''}`);
 console.log(`class: ${front.class} (${spec.label_en})`);
-if (closes) console.log(`closes: ${closes.toISOString().slice(0, 16).replace('T', ' ')}Z — ${open ? 'OPEN' : 'closed'}`);
+if (closes) console.log(`closes: ${closes.toISOString().slice(0, 16).replace('T', ' ')}Z`);
 console.log('');
 
 console.log(`Ballots counted: ${counted.length}${accepted.length !== counted.length ? ` (${accepted.length - counted.length} superseded)` : ''}`);
@@ -161,6 +203,7 @@ if (rejected.length) {
 console.log('');
 
 if (isElection) {
+  if (outcome.early) console.log(`  closed early \u2014 ${outcome.early}`);
   outcome.rounds.forEach((r, i) => {
     console.log(`Round ${i + 1}:`);
     for (const [c, v] of r.counts) console.log(`    ${String(v).padStart(4)}  ${c}`);
@@ -175,19 +218,20 @@ if (isElection) {
   console.log(`  quorum    ${outcome.cast}/${outcome.electorate} cast, ${outcome.quorumNeeded} needed \u2014 ${outcome.quorumMet ? 'met' : 'NOT MET'}`);
   console.log(`  threshold ${(outcome.share * 100).toFixed(2)}%, ${(spec.threshold * 100).toFixed(2)}% needed \u2014 ${outcome.thresholdMet ? 'met' : 'NOT MET'}`);
   console.log('');
-  console.log(open ? '  PROVISIONAL \u2014 voting is still open'
+  if (outcome.early) console.log(`  closed early \u2014 ${outcome.early}`);
+  console.log(outcome.open ? '  PROVISIONAL \u2014 voting is still open'
     : outcome.carried ? '  CARRIED (art-08/\u00a744/\u00b61)' : '  NOT CARRIED (art-08/\u00a744/\u00b61)');
 }
 
 console.log('\nReceipts \u2014 each citizen may confirm their own (art-08/\u00a744/\u00b63):');
 for (const b of counted) console.log(`  ${b.citizenId}  ${b.receipt}`);
 
-const out = { proposal: front.id, class: front.class, at: now.toISOString(), open, closes: closes?.toISOString() ?? null, counted, rejected, delegated, outcome };
+const out = { proposal: front.id, class: front.class, at: now.toISOString(), open: outcome.open, closes: closes?.toISOString() ?? null, counted, rejected, delegated, outcome };
 fs.mkdirSync(dir, { recursive: true });
 fs.writeFileSync(path.join(dir, '_result.json'), JSON.stringify(out, null, 2));
 console.log(`\nWritten to ballots/${front.id}/_result.json`);
 
-process.exit(isElection || open ? 0 : outcome.carried ? 0 : 1);
+process.exit(isElection || outcome.open ? 0 : outcome.carried ? 0 : 1);
 
 function instantRunoff(ballots, weights, candidates) {
   const active = new Set(candidates.length ? candidates : ballots.flatMap((b) => b.choice));

@@ -19,7 +19,9 @@
     "found": "node tools/found.js",
     "gate": "node tools/gate.js",
     "join": "node tools/join.js",
-    "enact": "node tools/enact.js"
+    "enact": "node tools/enact.js",
+    "entity": "node tools/entity.js",
+    "close": "node tools/close.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

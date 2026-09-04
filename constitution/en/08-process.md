@@ -31,6 +31,12 @@ title: Deliberation and Decision
 
 ⁴ A delegated vote is exercised openly and is recorded as delegated.
 
+⁵ Voting closes at the earlier of the end of that period, or the moment at which the outcome can no longer be changed by the ballots not yet cast.
+
+⁶ The outcome can no longer be changed when every citizenship on the register has voted, or when the measure would carry however the remaining ballots were cast, or would fail however they were cast.
+
+⁷ A measure closed under ⁵ is closed for all purposes, and Article 8 § 45 applies to it.
+
 ## § 44  Tally
 
 ¹ A measure carries if the votes cast satisfy the quorum and the threshold fixed for its class.

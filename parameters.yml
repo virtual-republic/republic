@@ -65,6 +65,17 @@ ballot:
   allow_update: true
   reject_after_close: true
 
+  # art-08/§43/¶5 — voting closes when waiting can no longer change anything.
+  early_close:
+    enabled: true
+    # every citizenship on the register has voted (art-08/§43/¶6, first limb)
+    on_full_participation: true
+    # no distribution of the remaining ballots could change the result
+    # (art-08/§43/¶6, second and third limbs)
+    on_determined_outcome: true
+    # a floor, as a fraction of the electorate, before either applies at all
+    minimum_participation: 1.0
+
 admission:
   minimum_age: 16
   objection_days: 7

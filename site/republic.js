@@ -144,7 +144,7 @@ export async function makeBallot(proposal, choice, privateKey) {
 
 // Count a measure in the browser, from the published ballots. Same arithmetic
 // as tools/tally.js, so the running total a citizen sees is the real one.
-export async function tally(measure, ballots, roll, spec, closes) {
+export async function tally(measure, ballots, roll, spec, closes, early = {}) {
   const keys = new Map();
   for (const c of roll) for (const k of c.keys || []) keys.set(k.split(/\s+/)[1], c.id);
 
@@ -164,11 +164,31 @@ export async function tally(measure, ballots, roll, spec, closes) {
   const decisive = t.yes + t.no;
   const quorumNeeded = Math.ceil(spec.quorum * roll.filter((c) => c.status === 'active').length);
   const share = decisive ? t.yes / decisive : 0;
-  const open = closes ? new Date() < new Date(closes) : true;
+  const byCalendar = closes ? new Date() < new Date(closes) : true;
+
+  // art-08/§43/¶5–¶6 — voting closes once waiting cannot change anything.
+  const N = roll.filter((c) => c.status === 'active').length;
+  const remaining = N - cast;
+  let closedEarly = null;
+  if (early.enabled && N && cast / N >= (early.minimum_participation ?? 1)) {
+    if (early.on_full_participation && remaining <= 0) {
+      closedEarly = 'every citizenship has voted';
+    } else if (early.on_determined_outcome) {
+      const carries = (y, n) => (cast + remaining) >= quorumNeeded && (y + n) > 0 && y / (y + n) >= spec.threshold;
+      if (cast + remaining < quorumNeeded) closedEarly = 'quorum can no longer be reached';
+      else {
+        const best = carries(t.yes + remaining, t.no), worst = carries(t.yes, t.no + remaining);
+        if (best === worst) closedEarly = best ? 'carries however the remaining ballots are cast' : 'fails however the remaining ballots are cast';
+      }
+    }
+  }
+
+  const open = byCalendar && !closedEarly;
   return {
-    ...t, cast, quorumNeeded, quorumMet: cast >= quorumNeeded,
+    ...t, cast, electorate: N, remaining, quorumNeeded, quorumMet: cast >= quorumNeeded,
     share, threshold: spec.threshold, thresholdMet: share >= spec.threshold,
-    open, carried: cast >= quorumNeeded && share >= spec.threshold && !open,
+    open, closedEarly,
+    carried: cast >= quorumNeeded && share >= spec.threshold && !open,
     rejected,
   };
 }

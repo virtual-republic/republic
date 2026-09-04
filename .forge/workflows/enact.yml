@@ -1,0 +1,33 @@
+# art-08/§45/¶1 — a measure that carries is enacted. Nothing else is enacted.
+#
+# This is the required status check. It reads the paths a pull request touches,
+# decides whether they are governed and by which class of measure, then refuses
+# the merge unless a measure of that class has been cited and has carried.
+#
+# Add "enact" to the branch ruleset's required status checks and this stops
+# being advisory.
+name: enact
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  enact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci --omit=dev || npm install --omit=dev
+      - name: Does this change require a measure, and did it carry?
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=0
+          node tools/gate.js --base "origin/${{ github.base_ref }}" | tee gate.txt
+      - name: Report
+        if: always()
+        run: cat gate.txt >> $GITHUB_STEP_SUMMARY || true

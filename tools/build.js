@@ -29,7 +29,12 @@ const chain = verifyChain(ROOT);
 const checkpoints = checkpointList(ROOT);
 const roll = citizens(ROOT);
 const active = activeCitizens(ROOT);
-const ents = entities(ROOT);
+const ents = entities(ROOT).map((e) => {
+  const f = e.charter && fs.existsSync(path.join(ROOT, e.charter)) ? fs.readFileSync(path.join(ROOT, e.charter), 'utf8') : null;
+  if (!f) return e;
+  const end = f.indexOf('\n---', 3);
+  return { ...e, charterMeta: yaml.load(f.slice(4, end)) || {}, charterBody: f.slice(end + 4) };
+});
 const offs = offices(ROOT);
 const NAME_EN = C.constitution.meta.republic.name_en;
 const NAME_FR = C.constitution.meta.republic.name_fr;
@@ -455,6 +460,18 @@ for (const p of C.proposals) {
 
     ${IDENTITY}
 
+    <section class="panel" id="closepanel" hidden>
+      <h2>${bi('Close and enact', 'Clore et promulguer')}</h2>
+      <p id="closewhy" class="status"></p>
+      <p class="note">${bi('Closing counts the ballots, publishes the Journal issue if the measure carried, records the enactment, and opens a pull request. It runs on GitHub because it writes to the register — art-08/§43/¶5, art-08/§45/¶1.',
+        'La clôture compte les bulletins, publie le Journal si la mesure est adoptée, consigne la promulgation et ouvre une pull request — art-08/§43/¶5, art-08/§45/¶1.')}</p>
+      <div class="row">
+        <a id="closebtn" class="btn" target="_blank" rel="noopener">${bi('Close and enact on GitHub', 'Clore sur GitHub')}</a>
+      </div>
+      <p class="note">${bi('On the page that opens: press Run workflow, type this measure\u2019s identifier, and run it.',
+        'Sur la page qui s\u2019ouvre : cliquez sur Run workflow, saisissez l\u2019identifiant de la mesure, puis lancez-la.')}</p>
+    </section>
+
     <section class="panel">
       <h2>${open ? bi('Vote', 'Voter') : bi('Voting closed', 'Vote clos')}</h2>
       ${open ? `
@@ -482,14 +499,25 @@ for (const p of C.proposals) {
     const rollData = await (await fetch('${u('/data/citizens.json')}')).json();
     const ballots = await (await fetch('${u(`/data/ballots/${p.id}.json`)}')).json();
 
-    const t = await R.tally(${JSON.stringify(p.id)}, ballots, rollData, spec, closes);
+    const t = await R.tally(${JSON.stringify(p.id)}, ballots, rollData, spec, closes, meta.parameters.ballot.early_close || {});
     const bar = $('tallybar');
     bar.classList.add(t.open ? '' : t.carried ? 'good' : 'bad');
     $('tallytext').textContent =
       t.yes + ' yes · ' + t.no + ' no · ' + t.abstain + ' abstain — ' +
       t.cast + '/' + rollData.filter((c) => c.status === 'active').length + ' cast, quorum ' + t.quorumNeeded +
       (t.quorumMet ? ' met' : ' NOT met') + ' · ' + (t.share * 100).toFixed(0) + '% of ' + (t.threshold * 100).toFixed(0) + '% needed · ' +
-      (t.open ? 'open until ' + (closes || '').slice(0, 10) : t.carried ? 'CARRIED' : 'NOT CARRIED');
+      (t.open ? 'open until ' + (closes || '').slice(0, 10)
+        : (t.closedEarly ? 'closed early — ' + t.closedEarly + ' — ' : '') + (t.carried ? 'CARRIED' : 'NOT CARRIED'));
+
+    // art-08/§43/¶5 — offer closing once the calendar or the arithmetic says so.
+    if (!t.open) {
+      const panel = $('closepanel');
+      panel.hidden = false;
+      $('closewhy').textContent = t.closedEarly
+        ? 'Closed early — ' + t.closedEarly + '. ' + (t.carried ? 'The measure carries.' : 'The measure fails.')
+        : 'The voting period has ended. ' + (t.carried ? 'The measure carries.' : 'The measure fails.');
+      $('closebtn').href = 'https://github.com/' + meta.repo + '/actions/workflows/close.yml';
+    }
 
     $('ballotrows').innerHTML = Object.entries(ballots).map(([id, b]) =>
       '<tr><td><code>' + id + '</code></td><td>' + b.choice + '</td><td>' + (b.at || '').slice(0, 16).replace('T', ' ') + '</td></tr>').join('')
@@ -544,7 +572,7 @@ write('register', page('Register', `
   <section>
     <h2>${bi('Entities', 'Entités')} <span class="count">${ents.length}</span></h2>
     <table class="grid"><thead><tr><th>id</th><th>${bi('type', 'type')}</th><th>${bi('name', 'nom')}</th><th>${bi('formed', 'constituée')}</th></tr></thead>
-    <tbody>${ents.map((e) => `<tr><td><code>${esc(e.id)}</code></td><td>${esc(e.type)}</td>
+    <tbody>${ents.map((e) => `<tr><td><a href="${u(`/entities/${e.id}/`)}"><code>${esc(e.id)}</code></a></td><td>${esc(e.type)}</td>
       <td>${bi(e.name_en, e.name_fr)}</td><td>${esc(isoDate(e.formed))}</td></tr>`).join('') || `<tr><td colspan="4" class="empty">—</td></tr>`}</tbody></table>
   </section>`, { active: 'register' }));
 
@@ -613,6 +641,48 @@ write('checkpoints', page('Checkpoints', `
   <pre class="cmd">git clone &lt;repository&gt;
 npm install &amp;&amp; npm run verify</pre>`, { active: '' }));
 
+// ---- entities --------------------------------------------------------------
+
+for (const e of ents) {
+  const sections = e.charterBody ? parseCharter(e.charterBody) : [];
+  write(`entities/${e.id}`, page(e.name_en || e.id, `
+    <nav class="crumb"><a href="${u('/register/')}">${bi('Register', 'Registre')}</a> › <span>${esc(e.id)}</span></nav>
+    <header class="artheader">
+      <span class="artno">${esc(e.id)}</span>
+      <h1>${bi(e.name_en, e.name_fr)}</h1>
+      <span class="tag">${esc(e.type)}</span>
+    </header>
+    <section>
+      <h2>${bi('Register entry', 'Inscription au registre')}</h2>
+      <table class="grid"><tbody>
+        <tr><td>${bi('formed', 'constituée')}</td><td>${esc(isoDate(e.formed))} ${link(String(e.formed_under || ''))}</td></tr>
+        <tr><td>${bi('formed by', 'constituée par')}</td><td><code>${esc(e.formed_by || '')}</code></td></tr>
+        <tr><td>${bi('organs', 'organes')}</td><td>${(e.organs || []).map((o) => `${esc(o.name)} — ${(o.held_by || []).map((h) => `<code>${esc(h)}</code>`).join(' ')}`).join('<br>')}</td></tr>
+        <tr><td>${bi('members', 'membres')}</td><td>${(e.members || []).map((m) => `<code>${esc(m)}</code>`).join(' ')}</td></tr>
+        <tr><td>${bi('status', 'statut')}</td><td>${esc(e.status || '')}</td></tr>
+      </tbody></table>
+    </section>
+    ${sections.length ? `<section class="law">
+      <h2>${bi('Charter', 'Statuts')}</h2>
+      ${renderSections(sections, 'en', null)}
+      <p class="note">${bi('A charter is subordinate to the Constitution — art-04/§21/¶3.', 'Les statuts sont subordonnés à la Constitution — art-04/§21/¶3.')}</p>
+    </section>` : ''}`, { active: 'register' }));
+}
+
+function parseCharter(body) {
+  const out = [];
+  let cur = null;
+  for (const raw of body.split('\n')) {
+    const line = raw.trimEnd();
+    const h = line.match(/^##\s+§\s*(\d+)\s*(.*)$/);
+    if (h) { cur = { num: Number(h[1]), heading: (h[2] || '').trim(), paragraphs: [] }; out.push(cur); continue; }
+    const m = line.match(/^([¹²³⁴⁵⁶⁷⁸⁹])\s+/);
+    if (m && cur) { cur.paragraphs.push({ num: '¹²³⁴⁵⁶⁷⁸⁹'.indexOf(m[1]) + 1, text: line.slice(m[0].length).trim() }); }
+    else if (cur && cur.paragraphs.length && line.trim()) cur.paragraphs[cur.paragraphs.length - 1].text += ' ' + line.trim();
+  }
+  return out;
+}
+
 // ---- data ------------------------------------------------------------------
 
 const resolveIndex = {};
@@ -622,6 +692,7 @@ fs.mkdirSync(path.join(OUT, 'data'), { recursive: true });
 fs.writeFileSync(path.join(OUT, 'data/resolve.json'), JSON.stringify(resolveIndex));
 fs.writeFileSync(path.join(OUT, 'data/citizens.json'), JSON.stringify(roll.map((c) => ({ id: c.id, status: c.status, admitted: isoDate(c.admitted), keys: c.keys || [] })), null, 2));
 fs.writeFileSync(path.join(OUT, 'data/offices.json'), JSON.stringify(offs, null, 2));
+fs.writeFileSync(path.join(OUT, 'data/entities.json'), JSON.stringify(ents.map((e) => ({ id: e.id, type: e.type, name_en: e.name_en, name_fr: e.name_fr, organs: e.organs, members: e.members, status: e.status })), null, 2));
 fs.writeFileSync(path.join(OUT, 'data/proposals.json'), JSON.stringify(C.proposals.map((p) => ({ id: p.id, title: p.title || p.title_en, class: p.class, closes: closesOf(p)?.toISOString() ?? null })), null, 2));
 fs.writeFileSync(path.join(OUT, 'data/meta.json'), JSON.stringify({ repo: REPO, branch: BRANCH, base: BASE, classes: CLASSES, parameters: P }, null, 2));
 fs.copyFileSync(path.join(ROOT, 'ledger/events.jsonl'), path.join(OUT, 'data/events.jsonl'));
