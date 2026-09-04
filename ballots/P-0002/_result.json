@@ -1,0 +1,33 @@
+{
+  "proposal": "P-0002",
+  "class": "organic",
+  "at": "2026-09-04T20:57:04.598Z",
+  "open": false,
+  "closes": "2026-09-17T00:00:00.000Z",
+  "counted": [
+    {
+      "citizenId": "c-0006",
+      "choice": "yes",
+      "receipt": "210f124597b827b1"
+    }
+  ],
+  "rejected": [],
+  "delegated": [],
+  "outcome": {
+    "yes": 1,
+    "no": 0,
+    "abstain": 0,
+    "cast": 1,
+    "electorate": 1,
+    "quorumNeeded": 1,
+    "quorumMet": true,
+    "share": 1,
+    "threshold": 0.6667,
+    "thresholdMet": true,
+    "carried": true,
+    "open": false,
+    "early": "every citizenship has voted (art-08/§43/¶6)",
+    "closes": "2026-09-17T00:00:00.000Z"
+  },
+  "enacted": "2026-09-04T20:57:04.663Z"
+}
