@@ -21,7 +21,9 @@
     "join": "node tools/join.js",
     "enact": "node tools/enact.js",
     "entity": "node tools/entity.js",
-    "close": "node tools/close.js"
+    "close": "node tools/close.js",
+    "depart": "node tools/depart.js",
+    "why": "node tools/why.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
