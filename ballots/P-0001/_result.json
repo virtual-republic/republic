@@ -1,10 +1,17 @@
 {
   "proposal": "P-0001",
   "class": "organic",
-  "at": "2026-09-04T20:57:04.545Z",
-  "open": true,
+  "at": "2026-09-04T21:43:48.192Z",
+  "open": false,
   "closes": "2026-09-10T00:00:00.000Z",
-  "counted": [],
+  "counted": [
+    {
+      "citizenId": "c-0006",
+      "choice": "yes",
+      "at": "2026-09-04T21:26:30.752Z",
+      "receipt": "8234c1d09998311b"
+    }
+  ],
   "rejected": [
     {
       "citizenId": "c-0001",
@@ -29,19 +36,20 @@
   ],
   "delegated": [],
   "outcome": {
-    "yes": 0,
+    "yes": 1,
     "no": 0,
     "abstain": 0,
-    "cast": 0,
+    "cast": 1,
     "electorate": 1,
     "quorumNeeded": 1,
-    "quorumMet": false,
-    "share": 0,
+    "quorumMet": true,
+    "share": 1,
     "threshold": 0.6667,
-    "thresholdMet": false,
-    "carried": false,
-    "open": true,
-    "early": null,
+    "thresholdMet": true,
+    "carried": true,
+    "open": false,
+    "early": "every citizenship has voted (art-08/§43/¶6)",
     "closes": "2026-09-10T00:00:00.000Z"
-  }
+  },
+  "enacted": "2026-09-04T21:43:48.254Z"
 }
