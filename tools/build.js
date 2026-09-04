@@ -307,13 +307,31 @@ for (const art of C.constitution.articles) {
 const assemblyScript = (extra = '') => `
 import * as R from '${u('/republic.js')}';
 const $ = (id) => document.getElementById(id);
-const meta = await (await fetch('${u('/data/meta.json')}')).json();
+
+// A page stuck on "counting…" tells nobody anything. Report failures visibly.
+function fail(where, err) {
+  const msg = where + ': ' + (err && err.message ? err.message : err);
+  const bar = $('tallybar'), text = $('tallytext'), who = $('who');
+  if (bar) bar.classList.add('bad');
+  if (text) text.textContent = msg;
+  else if (who) { who.textContent = msg; who.className = 'status bad'; }
+  console.error('[republic]', where, err);
+}
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.status + ' ' + r.statusText + ' for ' + url);
+  return r.json();
+}
+
+let meta;
+try { meta = await getJSON('${u('/data/meta.json')}'); }
+catch (e) { fail('could not load meta.json', e); throw e; }
 let priv = null, pubLine = null, citizenId = null, pemText = null;
 function say(m, bad) { const w = $('who'); if (!w) return; w.textContent = m; w.className = 'status' + (bad ? ' bad' : ''); }
 async function adopt(text) {
   priv = await R.importPrivateKey(text); pemText = text;
   pubLine = R.publicKeyLine(priv.raw, '');
-  const rollData = await (await fetch('${u('/data/citizens.json')}')).json();
+  const rollData = await getJSON('${u('/data/citizens.json')}');
   const mine = pubLine.split(/\\s+/)[1];
   const m = rollData.find((c) => (c.keys || []).some((k) => k.split(/\\s+/)[1] === mine));
   citizenId = m ? m.id : null;
@@ -407,8 +425,8 @@ write('assembly', page('Assembly', `
   $('check').onclick = () => {
     const cites = $('pcites').value.split('\\n').map((c) => c.trim()).filter(Boolean);
     const bad = cites.filter((c) => !resolve[c] && !resolve['const.' + c]);
-    if (!cites.length) return fail('cites nothing — not received (art-08/§41/¶3)');
-    if (bad.length) return fail('does not resolve: ' + bad.join(', '));
+    if (!cites.length) return reject('cites nothing — not received (art-08/§41/¶3)');
+    if (bad.length) return reject('does not resolve: ' + bad.join(', '));
     const spec = meta.classes[$('pclass').value];
     const today = new Date(), close = new Date(today.getTime() + spec.window_days * 86400000);
     const lines = ['---', 'id: ' + $('pid').value, 'title: ' + $('ptitle').value];
@@ -425,7 +443,7 @@ write('assembly', page('Assembly', `
     $('pcommit').href = R.commitUrl(meta.repo, meta.branch, 'proposals/' + $('pid').value + '-' + slug + '.md', md, 'propose: ' + $('pid').value);
     $('pcommit').hidden = false;
   };
-  function fail(m) { $('pstatus').className = 'status bad'; $('pstatus').textContent = m; $('pcommit').hidden = true; $('preview').hidden = true; }
+  function reject(m) { $('pstatus').className = 'status bad'; $('pstatus').textContent = m; $('pcommit').hidden = true; $('preview').hidden = true; }
   `) }));
 
 // ---- one page per measure --------------------------------------------------
@@ -494,51 +512,69 @@ for (const p of C.proposals) {
       <table class="grid"><thead><tr><th>citizen</th><th>${bi('choice', 'choix')}</th><th>${bi('cast', 'déposé')}</th></tr></thead>
       <tbody id="ballotrows"></tbody></table>
     </section>`, { active: 'assembly', script: assemblyScript(`
-    const spec = meta.classes[${JSON.stringify(p.class)}];
-    const closes = ${cl ? JSON.stringify(cl.toISOString()) : 'null'};
-    const rollData = await (await fetch('${u('/data/citizens.json')}')).json();
-    const ballots = await (await fetch('${u(`/data/ballots/${p.id}.json`)}')).json();
-
-    const t = await R.tally(${JSON.stringify(p.id)}, ballots, rollData, spec, closes, meta.parameters.ballot.early_close || {});
-    const bar = $('tallybar');
-    bar.classList.add(t.open ? '' : t.carried ? 'good' : 'bad');
-    $('tallytext').textContent =
-      t.yes + ' yes · ' + t.no + ' no · ' + t.abstain + ' abstain — ' +
-      t.cast + '/' + rollData.filter((c) => c.status === 'active').length + ' cast, quorum ' + t.quorumNeeded +
-      (t.quorumMet ? ' met' : ' NOT met') + ' · ' + (t.share * 100).toFixed(0) + '% of ' + (t.threshold * 100).toFixed(0) + '% needed · ' +
-      (t.open ? 'open until ' + (closes || '').slice(0, 10)
-        : (t.closedEarly ? 'closed early — ' + t.closedEarly + ' — ' : '') + (t.carried ? 'CARRIED' : 'NOT CARRIED'));
-
-    // art-08/§43/¶5 — offer closing once the calendar or the arithmetic says so.
-    if (!t.open) {
-      const panel = $('closepanel');
-      panel.hidden = false;
-      $('closewhy').textContent = t.closedEarly
-        ? 'Closed early — ' + t.closedEarly + '. ' + (t.carried ? 'The measure carries.' : 'The measure fails.')
-        : 'The voting period has ended. ' + (t.carried ? 'The measure carries.' : 'The measure fails.');
-      $('closebtn').href = 'https://github.com/' + meta.repo + '/actions/workflows/close.yml';
-    }
-
-    $('ballotrows').innerHTML = Object.entries(ballots).map(([id, b]) =>
-      '<tr><td><code>' + id + '</code></td><td>' + b.choice + '</td><td>' + (b.at || '').slice(0, 16).replace('T', ' ') + '</td></tr>').join('')
-      || '<tr><td colspan="3" class="empty">none yet</td></tr>';
-
+    // --- voting, wired first and independently -----------------------------
+    // Counting and voting are separate concerns. A failure in one must not
+    // disable the other.
     let choice = null;
-    for (const b of document.querySelectorAll('.choices button')) b.onclick = () => {
-      choice = b.dataset.choice;
-      for (const x of document.querySelectorAll('.choices button')) x.setAttribute('aria-pressed', String(x === b));
-      if ($('sign')) $('sign').disabled = !(choice && priv);
-    };
-    document.addEventListener('identity', () => { if ($('sign')) $('sign').disabled = !(choice && priv); });
+    function refreshSign() {
+      const b = $('sign');
+      if (b) b.disabled = !(choice && priv);
+    }
+    for (const b of document.querySelectorAll('.choices button')) {
+      b.onclick = () => {
+        choice = b.dataset.choice;
+        for (const x of document.querySelectorAll('.choices button')) x.setAttribute('aria-pressed', String(x === b));
+        refreshSign();
+      };
+    }
+    document.addEventListener('identity', refreshSign);
+    refreshSign();
+
     if ($('sign')) $('sign').onclick = async () => {
-      const { ballot, receipt } = await R.makeBallot(${JSON.stringify(p.id)}, choice, priv);
-      $('result').hidden = false;
-      $('result').textContent = 'receipt ' + receipt + '\\n\\n' + JSON.stringify(ballot, null, 2);
-      $('commit').href = R.commitUrl(meta.repo, meta.branch,
-        'ballots/${p.id}/' + (citizenId || 'unregistered') + '.json', JSON.stringify(ballot, null, 2),
-        'ballot: ${p.id}');
-      $('commit').hidden = false;
-    };`) }));
+      try {
+        if (!priv) throw new Error('load a key first');
+        if (!choice) throw new Error('choose yes, no, or abstain first');
+        const { ballot, receipt } = await R.makeBallot(${JSON.stringify(p.id)}, choice, priv);
+        $('result').hidden = false;
+        $('result').textContent = 'receipt ' + receipt + '\\n\\n' + JSON.stringify(ballot, null, 2);
+        $('commit').href = R.commitUrl(meta.repo, meta.branch,
+          'ballots/${p.id}/' + (citizenId || 'unregistered') + '.json', JSON.stringify(ballot, null, 2),
+          'ballot: ${p.id}');
+        $('commit').hidden = false;
+      } catch (e) { fail('could not sign', e); }
+    };
+
+    // --- counting ----------------------------------------------------------
+    try {
+      const spec = meta.classes[${JSON.stringify(p.class)}];
+      if (!spec) throw new Error('unknown class ' + ${JSON.stringify(p.class)});
+      const closes = ${cl ? JSON.stringify(cl.toISOString()) : 'null'};
+      const rollData = await getJSON('${u('/data/citizens.json')}');
+      const ballots = await getJSON('${u(`/data/ballots/${p.id}.json`)}');
+      const earlyRules = (meta.parameters && meta.parameters.ballot && meta.parameters.ballot.early_close) || {};
+
+      const t = await R.tally(${JSON.stringify(p.id)}, ballots, rollData, spec, closes, earlyRules);
+      const bar = $('tallybar');
+      if (!t.open) bar.classList.add(t.carried ? 'good' : 'bad');
+      const electorate = rollData.filter((c) => c.status === 'active').length;
+      $('tallytext').textContent =
+        t.yes + ' yes \u00b7 ' + t.no + ' no \u00b7 ' + t.abstain + ' abstain \u2014 ' +
+        t.cast + '/' + electorate + ' cast, quorum ' + t.quorumNeeded + (t.quorumMet ? ' met' : ' NOT met') +
+        ' \u00b7 ' + (t.share * 100).toFixed(0) + '% of ' + (t.threshold * 100).toFixed(0) + '% needed \u00b7 ' +
+        (t.open ? 'open until ' + (closes || '').slice(0, 10)
+          : (t.closedEarly ? 'closed early \u2014 ' + t.closedEarly + ' \u2014 ' : '') + (t.carried ? 'CARRIED' : 'NOT CARRIED'));
+
+      if (!t.open) {
+        $('closepanel').hidden = false;
+        $('closewhy').textContent = (t.closedEarly ? 'Closed early \u2014 ' + t.closedEarly + '. ' : 'The voting period has ended. ')
+          + (t.carried ? 'The measure carries.' : 'The measure fails.');
+        $('closebtn').href = 'https://github.com/' + meta.repo + '/actions/workflows/close.yml';
+      }
+
+      $('ballotrows').innerHTML = Object.entries(ballots).map(([id, b]) =>
+        '<tr><td><code>' + id + '</code></td><td>' + b.choice + '</td><td>' + (b.at || '').slice(0, 16).replace('T', ' ') + '</td></tr>').join('')
+        || '<tr><td colspan="3" class="empty">none yet</td></tr>';
+    } catch (e) { fail('could not count', e); }`) }));
 }
 
 // ---- journal, register, ledger, office, checkpoints ------------------------
