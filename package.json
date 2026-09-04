@@ -23,7 +23,8 @@
     "entity": "node tools/entity.js",
     "close": "node tools/close.js",
     "depart": "node tools/depart.js",
-    "why": "node tools/why.js"
+    "why": "node tools/why.js",
+    "stand": "node tools/stand.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

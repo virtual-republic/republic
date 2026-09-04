@@ -128,20 +128,19 @@ fs.writeFileSync(
 );
 
 const OFFICES = [
-  ['registrar', 'Registrar', 'Greffier', ['register.admit', 'register.object', 'entity.register']],
-  ['keeper', 'Keeper of the Journal', 'Gardien du Journal', ['journal.publish', 'checkpoint.sign']],
-  ['treasurer', 'Treasurer', 'Trésorier', ['value.issue', 'treasury.disburse']],
-  ['auditor', 'Auditor', 'Auditeur', ['audit.report']],
+  ['registrar', 'Registrar', ['register.admit', 'register.object', 'entity.register']],
+  ['keeper', 'Keeper of the Journal', ['journal.publish', 'checkpoint.sign']],
+  ['treasurer', 'Treasurer', ['value.issue', 'treasury.disburse']],
+  ['auditor', 'Auditor', ['audit.report']],
 ];
 
 fs.writeFileSync(
   path.join(ROOT, 'register/offices.yml'),
   '# Held in plurality under art-11/§65/¶1 until the Republic has five citizens.\noffices:\n' +
-    OFFICES.map(([oid, en, fr, perms]) =>
+    OFFICES.map(([oid, title, perms]) =>
       [
         `  - id: ${oid}`,
-        `    title_en: ${en}`,
-        `    title_fr: ${fr}`,
+        `    title: ${title}`,
         `    holder: ${id}`,
         `    since: ${today}`,
         `    term_ends: ${Number(today.slice(0, 4)) + 1}${today.slice(4)}`,

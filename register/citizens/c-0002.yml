@@ -1,5 +1,7 @@
 id: c-0002
-status: active
+status: departed
+departed: 2026-09-04
+departed_under: art-03/§18/¶1
 admitted: 2026-08-26
 admitted_under: art-11/§64/¶2
 supported_by: [c-0001, c-0003]

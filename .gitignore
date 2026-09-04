@@ -3,9 +3,3 @@
 private/
 node_modules/
 dist/
-
-# macOS
-.DS_Store
-
-# downloaded archives
-*.tar.gz

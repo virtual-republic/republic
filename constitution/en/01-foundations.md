@@ -49,13 +49,13 @@ title: Foundations
 
 ⁴ The Republic SHALL maintain the repository on not fewer than two independent hosts.
 
-## § 6  Languages
+## § 6  Language
 
-¹ The languages of the Republic are English and French.
+¹ The language of the Republic is English.
 
-² Both versions of this Constitution are authentic. Neither is derived from the other.
+² This Constitution, the statutes, the Journal, and the register are kept in English, and the English text is authentic.
 
-³ Where the authentic versions differ in meaning, the meaning common to both prevails; if there is none, the question is referred to the Court.
+³ A translation may be published for convenience. A translation is not authentic and confers no right.
 
 ## § 7  Interpretation
 

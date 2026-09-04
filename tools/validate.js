@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import { loadConstitution, provisionIndex, normaliseCitation, entrenched } from './lib/constitution.js';
+import { classes as classRegistry, classSpec } from './lib/params.js';
 import { activeCitizens } from './lib/registers.js';
 
 const ROOT = process.cwd();
@@ -36,7 +37,7 @@ const body = src.slice(end + 4).trim();
 
 const constitution = loadConstitution(ROOT);
 const index = provisionIndex(constitution);
-const classes = constitution.meta.classes;
+const classes = classRegistry(ROOT);
 
 const errors = [];
 const warnings = [];
@@ -132,7 +133,7 @@ if (errors.length) fail(errors);
 
 const spec = classes[meta.class];
 console.log(`Received: ${meta.id} — ${meta.title}`);
-console.log(`  class     ${meta.class} (${spec.label_en})`);
+console.log(`  class     ${meta.class} (${spec.label})`);
 console.log(`  sponsor   ${meta.sponsor}`);
 console.log(`  cites     ${resolved.join(', ')}`);
 console.log(`  quorum    ${(spec.quorum * 100).toFixed(0)}% of ${roll.length} citizens = ${Math.ceil(spec.quorum * roll.length)} ballots`);

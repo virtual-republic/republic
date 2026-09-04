@@ -39,7 +39,7 @@ const RULES = [
 
   // Tunable values. A parameter change is a real change with no code change,
   // which is exactly why it is governed and exactly why it is cheap.
-  { pattern: /^parameters\.yml$/,          class: 'parameter', why: 'a tunable value (art-01/§4/¶3)' },
+  { pattern: /^parameters\.yml$/,          class: 'organic', why: 'a tunable value; the tools read it (art-01/§4/¶3)' },
 
   // Prose policy that no tool executes.
   { pattern: /^statutes\//,                class: 'policy', why: 'statute (art-01/§4/¶3)' },
@@ -61,7 +61,7 @@ const RULES = [
   { pattern: /^register\/keepers\.txt$/,   class: 'ordinary', why: 'the Keeper’s signing key' },
 ];
 
-const ORDER = ['parameter', 'policy', 'ordinary', 'organic', 'amendment', 'entrenched'];
+const ORDER = ['policy', 'ordinary', 'organic', 'amendment', 'entrenched'];
 
 // --- what changed ----------------------------------------------------------
 

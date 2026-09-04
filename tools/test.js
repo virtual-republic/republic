@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import { canonical, hashEvent, merkleRoot, merkleProof, verifyProof, read, verifyChain, GENESIS } from './lib/events.js';
 import { generateKeyPair, sign, verify, parsePublicKey, publicKeyLine } from './lib/sshsig.js';
 import { loadConstitution, provisionIndex, normaliseCitation } from './lib/constitution.js';
+import { classes } from './lib/params.js';
 import { activeCitizens } from './lib/registers.js';
 
 const ROOT = process.cwd();
@@ -106,8 +107,7 @@ t('art-11/\u00a765/\u00b63', 'a Republic of one citizen is a Republic', () => {
   const roll = activeCitizens(ROOT);
   assert(roll.length >= 1, 'no citizens on the register');
   // Every class must be capable of carrying with the citizens that exist.
-  const { classes } = loadConstitution(ROOT).meta;
-  for (const [name, spec] of Object.entries(classes)) {
+  for (const [name, spec] of Object.entries(classes(ROOT))) {
     const needed = Math.ceil(spec.quorum * roll.length);
     assert(needed <= roll.length, `class "${name}" needs ${needed} ballots from ${roll.length} citizens`);
   }

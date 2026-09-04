@@ -1,0 +1,59 @@
+# art-03/§18/¶1 — a citizen may depart at any time.
+# art-06/§29/¶4 — on vacancy the Assembly appoints until an election is held.
+#
+# Run from the Actions tab. Marks every citizenship except the one you keep as
+# departed, moves any offices they held to the surviving citizen, verifies the
+# register, and opens a pull request. Nothing happens on your machine.
+name: roster
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: 'The citizenship to keep, e.g. c-0006. Every other active one departs.'
+        required: true
+      offices_to:
+        description: 'Who inherits any offices held by the departing. Defaults to the kept citizenship.'
+        required: false
+
+jobs:
+  roster:
+    runs-on: ubuntu-latest
+    permissions: { contents: write, pull-requests: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci --omit=dev || npm install --omit=dev
+
+      - name: The register before
+        run: |
+          echo "Active citizenships:"
+          grep -l 'status: active' register/citizens/*.yml | xargs -n1 basename
+          echo "Offices:"
+          grep -E '^\s+(id|holder):' register/offices.yml
+
+      - name: Depart everyone except the kept citizenship
+        run: |
+          node tools/depart.js --all-except "${{ inputs.keep }}" \
+            ${{ inputs.offices_to && format('--offices-to {0}', inputs.offices_to) || '' }} | tee roster.txt
+
+      - name: The register must still verify
+        run: node tools/verify.js && node tools/test.js
+
+      - name: Propose it
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          if git diff --quiet; then echo "nothing changed"; exit 0; fi
+          BR="roster/$(date -u +%Y-%m-%d-%H%M)"
+          git config user.name  "Registrar"
+          git config user.email "registrar@users.noreply.github.com"
+          git checkout -b "$BR"
+          git add register/ ledger/
+          git commit -m "departures, keeping ${{ inputs.keep }} (art-03/§18/¶1, art-06/§29/¶4)"
+          git push -u origin "$BR"
+          gh pr create --title "Roster — keep ${{ inputs.keep }}" --body-file roster.txt \
+            --base "${{ github.event.repository.default_branch }}"
+
+      - if: always()
+        run: cat roster.txt >> $GITHUB_STEP_SUMMARY || true

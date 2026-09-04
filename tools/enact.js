@@ -65,12 +65,11 @@ const issue = `---
 number: ${number}
 date: ${today}
 measure: ${id}
-title_en: ${front.title || front.title_en || id}
-title_fr: ${front.title_fr || front.title || id}
+title: ${front.title || id}
 cites: [art-08/§45/¶1${cites.length ? ', ' + cites.join(', ') : ''}]
 ---
 
-${front.title || front.title_en || id} was carried by the Assembly and is enacted
+${front.title || id} was carried by the Assembly and is enacted
 by publication in this issue, under Article 8 § 45 ¹.
 
 The measure was of class ${front.class}. Of ${result.outcome.cast} ballots cast

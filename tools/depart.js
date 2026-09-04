@@ -15,12 +15,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { append } from './lib/events.js';
 import { citizens, offices } from './lib/registers.js';
+import yaml from 'js-yaml';
 
 const ROOT = process.cwd();
 const args = process.argv.slice(2);
 const keepIdx = args.indexOf('--all-except');
 const keep = keepIdx !== -1 ? args[keepIdx + 1] : null;
 const one = args.find((a) => /^c-\d{4}$/.test(a) && a !== keep);
+const officesTo = (() => { const i = args.indexOf('--offices-to'); return i === -1 ? keep : args[i + 1]; })();
 
 const roll = citizens(ROOT);
 const targets = keep
@@ -47,7 +49,39 @@ for (const id of targets) {
 
   const held = offices(ROOT).filter((o) => o.holder === id);
   if (held.length) {
-    console.log(`  note: ${id} held ${held.map((o) => o.id).join(', ')} — those offices are now vacant (art-06/§29/¶4)`);
+    if (officesTo) {
+      // art-06/§29/¶4 — on vacancy the Assembly appoints until an election is
+      // held. The Assembly is all citizens (art-06/§30/¶1).
+      const f = path.join(ROOT, 'register/offices.yml');
+      let src = fs.readFileSync(f, 'utf8');
+      src = src.replace(new RegExp(`^(\\s*holder:\\s*)${id}\\s*$`, 'gm'), `$1${officesTo}`);
+      fs.writeFileSync(f, src);
+      for (const o of held) {
+        append(ROOT, {
+          at: new Date().toISOString(),
+          author: officesTo,
+          kind: 'office.appointed',
+          provision: 'art-06/§29/¶4',
+          payload: { office: o.id, holder: officesTo, from: id },
+        });
+      }
+      console.log(`  ${held.map((o) => o.id).join(', ')} appointed to ${officesTo} (art-06/§29/¶4)`);
+
+      // The Keeper signs checkpoints; if that office moved, so must the key
+      // the verifier checks against (art-02/§10/¶2).
+      if (held.some((o) => (o.permissions || []).includes('checkpoint.sign'))) {
+        const heir = citizens(ROOT).find((c) => c.id === officesTo);
+        const key = (heir && heir.keys && heir.keys[0]) || null;
+        if (key) {
+          fs.writeFileSync(path.join(ROOT, 'register/keepers.txt'), key.split(/\s+/).slice(0, 2).join(' ') + ' ' + officesTo + '\n');
+          console.log(`  register/keepers.txt now holds ${officesTo}'s key (art-02/§10/¶2)`);
+        } else {
+          console.log(`  warning: ${officesTo} has no key on the register; keepers.txt unchanged`);
+        }
+      }
+    } else {
+      console.log(`  note: ${id} held ${held.map((o) => o.id).join(', ')} — now vacant (art-06/§29/¶4)`);
+    }
   }
 
   const file = path.join(ROOT, `register/citizens/${c.file}`);
@@ -69,3 +103,5 @@ for (const id of targets) {
 const remaining = citizens(ROOT).filter((c) => c.status === 'active');
 console.log(`\n${remaining.length} active citizenship(s): ${remaining.map((c) => c.id).join(', ')}`);
 console.log('Quorums are reckoned against that number — art-08/§44/¶2.');
+const held = offices(ROOT);
+if (held.length) console.log(`Offices: ${held.map((o) => `${o.id}=${o.holder}`).join(', ')}`);

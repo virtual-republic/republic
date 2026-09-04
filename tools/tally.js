@@ -190,7 +190,7 @@ if (isElection) {
 // --- report ----------------------------------------------------------------
 
 console.log(`${front.id} — ${front.title || front.title_en || ''}`);
-console.log(`class: ${front.class} (${spec.label_en})`);
+console.log(`class: ${front.class} (${spec.label})`);
 if (closes) console.log(`closes: ${closes.toISOString().slice(0, 16).replace('T', ' ')}Z`);
 console.log('');
 
