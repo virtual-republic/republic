@@ -72,41 +72,39 @@ export function publicKeyLine(raw, comment = '') {
 }
 
 function pem(pkcs8) {
-  const body = b64(pkcs8).replace(/(.{64})/g, '$1\n');
+  const body = b64(pkcs8).replace(/(.{64})/g, '$1\n').trim();
   return `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----\n`;
 }
 
-export async function importPrivateKey(pemOrB64) {
-  const body = String(pemOrB64)
-    .replace(/-----[A-Z ]+-----/g, '')
-    .replace(/\s+/g, '');
-  const pkcs8 = unb64(body);
-  const key = await crypto.subtle.importKey('pkcs8', pkcs8, { name: 'Ed25519' }, true, ['sign']);
-  // Recover the public half so the caller can show which citizenship this is.
-  const raw = pkcs8.slice(PKCS8_PREFIX.length, PKCS8_PREFIX.length + 32);
-  const pub = await crypto.subtle.importKey('raw', await derivePublic(key, raw), { name: 'Ed25519' }, true, ['verify']);
-  const spki = new Uint8Array(await crypto.subtle.exportKey('spki', pub));
-  return { key, raw: spki.slice(SPKI_PREFIX.length) };
+// A public key pasted where a private one belongs is the most common mistake,
+// so name it rather than failing with "Invalid keyData".
+export function looksLikePublicKey(text) {
+  const t = String(text).trim();
+  return t.startsWith('ssh-') || /^AAAAC3NzaC1lZDI1NTE5/.test(t.replace(/\s+/g, ''));
 }
 
-// Web Crypto gives no direct scalar->point op, so round-trip through a
-// signature-verifying import: export the private key's public counterpart by
-// re-importing the seed as a JWK.
-async function derivePublic(_key, seed) {
-  const jwk = { kty: 'OKP', crv: 'Ed25519', d: b64url(seed), x: '' };
-  // Browsers require x; derive it by generating from the seed via PKCS8 import
-  // and exporting SPKI, which is what importKey already did above. Fall back to
-  // asking the browser directly.
-  try {
-    const priv = await crypto.subtle.importKey(
-      'pkcs8', cat(PKCS8_PREFIX, seed), { name: 'Ed25519' }, true, ['sign']
-    );
-    const jwkOut = await crypto.subtle.exportKey('jwk', priv);
-    return unb64(jwkOut.x.replace(/-/g, '+').replace(/_/g, '/'));
-  } catch {
-    delete jwk.x;
-    throw new Error('could not derive the public key from this private key');
+export async function importPrivateKey(pemOrB64) {
+  const raw = String(pemOrB64).trim();
+  if (!raw) throw new Error('nothing pasted');
+  if (looksLikePublicKey(raw)) {
+    throw new Error('that is your PUBLIC key — the one that goes on the register. The private key is the .pem file, and begins "-----BEGIN PRIVATE KEY-----".');
   }
+
+  const body = raw.replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, '');
+  let pkcs8;
+  try { pkcs8 = unb64(body); } catch { throw new Error('this is not base64 — paste the whole .pem file, headers included'); }
+  if (pkcs8.length < 48) throw new Error('this key is too short to be an Ed25519 private key');
+
+  let key;
+  try {
+    key = await crypto.subtle.importKey('pkcs8', pkcs8, { name: 'Ed25519' }, true, ['sign']);
+  } catch {
+    throw new Error('the browser could not read this as an Ed25519 private key. If it begins "-----BEGIN OPENSSH PRIVATE KEY-----" it is the wrong format — use a key made here, or convert it.');
+  }
+
+  // Recover the public half so the caller can say which citizenship this is.
+  const jwk = await crypto.subtle.exportKey('jwk', key);
+  return { key, raw: unb64(jwk.x.replace(/-/g, '+').replace(/_/g, '/')) };
 }
 
 const b64url = (b) => b64(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -138,9 +136,41 @@ export async function sign(message, privateKey, { namespace = 'republic' } = {})
 
 export async function makeBallot(proposal, choice, privateKey) {
   const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
-  const message = canonical({ proposal, choice, salt });
+  const at = new Date().toISOString();
+  const message = canonical({ proposal, choice, at, salt });
   const signature = await sign(message, privateKey, { namespace: 'republic' });
-  return { ballot: { proposal, choice, salt, signature }, receipt: (await sha256(message)).slice(0, 16) };
+  return { ballot: { proposal, choice, at, salt, signature }, receipt: (await sha256(message)).slice(0, 16) };
+}
+
+// Count a measure in the browser, from the published ballots. Same arithmetic
+// as tools/tally.js, so the running total a citizen sees is the real one.
+export async function tally(measure, ballots, roll, spec, closes) {
+  const keys = new Map();
+  for (const c of roll) for (const k of c.keys || []) keys.set(k.split(/\s+/)[1], c.id);
+
+  const counted = new Map();
+  const rejected = [];
+  for (const [citizenId, b] of Object.entries(ballots)) {
+    if (!roll.some((c) => c.id === citizenId && c.status === 'active')) { rejected.push({ citizenId, reason: 'not an active citizenship' }); continue; }
+    if (b.proposal !== measure) { rejected.push({ citizenId, reason: 'wrong measure' }); continue; }
+    if (closes && b.at && new Date(b.at) > new Date(closes)) { rejected.push({ citizenId, reason: 'cast after close' }); continue; }
+    const held = counted.get(citizenId);
+    if (!held || (b.at && held.at && new Date(b.at) > new Date(held.at))) counted.set(citizenId, b);
+  }
+
+  const t = { yes: 0, no: 0, abstain: 0 };
+  for (const b of counted.values()) if (t[b.choice] !== undefined) t[b.choice]++;
+  const cast = counted.size;
+  const decisive = t.yes + t.no;
+  const quorumNeeded = Math.ceil(spec.quorum * roll.filter((c) => c.status === 'active').length);
+  const share = decisive ? t.yes / decisive : 0;
+  const open = closes ? new Date() < new Date(closes) : true;
+  return {
+    ...t, cast, quorumNeeded, quorumMet: cast >= quorumNeeded,
+    share, threshold: spec.threshold, thresholdMet: share >= spec.threshold,
+    open, carried: cast >= quorumNeeded && share >= spec.threshold && !open,
+    rejected,
+  };
 }
 
 // ---- verifying the register in the page (art-05/§26) ---------------------

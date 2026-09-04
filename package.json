@@ -16,7 +16,10 @@
     "test": "node tools/test.js",
     "sync:offices": "node tools/sync-offices.js",
     "archive": "node tools/archive-deliberation.js",
-    "found": "node tools/found.js"
+    "found": "node tools/found.js",
+    "gate": "node tools/gate.js",
+    "join": "node tools/join.js",
+    "enact": "node tools/enact.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

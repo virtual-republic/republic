@@ -1,0 +1,79 @@
+# Every tunable value of the Republic.
+#
+# Nothing here is code. Changing a value here changes what the tools do, which
+# is why it is governed: art-01/§4/¶3 keeps rates and thresholds out of the
+# Constitution, and a measure of class "parameter" is how they move.
+#
+# tools/gate.js requires class "parameter" (or higher) for any change to this
+# file, and nothing else in the repository may hardcode a value that appears here.
+
+version: 1
+
+governance:
+  classes:
+    parameter:
+      label_en: Parameter
+      label_fr: Paramètre
+      quorum: 0.20
+      threshold: 0.50
+      window_days: 7
+    ordinary:
+      label_en: Ordinary measure
+      label_fr: Mesure ordinaire
+      quorum: 0.20
+      threshold: 0.50
+      window_days: 7
+    policy:
+      label_en: Policy
+      label_fr: Politique
+      quorum: 0.20
+      threshold: 0.50
+      window_days: 7
+    organic:
+      label_en: Organic statute
+      label_fr: Loi organique
+      quorum: 0.33
+      threshold: 0.6667
+      window_days: 14
+    amendment:
+      label_en: Constitutional amendment
+      label_fr: Amendement constitutionnel
+      quorum: 0.50
+      threshold: 0.6667
+      window_days: 21
+      successive: true
+      successive_days: 30
+    entrenched:
+      label_en: Entrenched provision
+      label_fr: Disposition protégée
+      quorum: 0.60
+      threshold: 0.75
+      window_days: 30
+      successive: true
+      successive_days: 30
+    election:
+      label_en: Election
+      label_fr: Élection
+      quorum: 0.33
+      method: irv
+      window_days: 7
+
+ballot:
+  # art-08/§43 — one ballot per citizenship. A later ballot replaces an earlier
+  # one; an earlier one may never replace a later one.
+  one_per_citizenship: true
+  allow_update: true
+  reject_after_close: true
+
+admission:
+  minimum_age: 16
+  objection_days: 7
+
+value:
+  unit_en: obol
+  unit_fr: obole
+  subunit_en: mina
+  issue_cap_per_resolution: 100000
+
+journal:
+  auto_publish_on_enactment: true

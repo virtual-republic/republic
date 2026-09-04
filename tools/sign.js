@@ -17,11 +17,16 @@ if (!fs.existsSync(key)) { console.error(`no key at ${key} — run: node tools/k
 
 const choice = rawChoice.includes(',') ? rawChoice.split(',').map((s) => s.trim()) : rawChoice;
 const salt = crypto.randomBytes(16).toString('hex');
-const message = canonical({ proposal, choice, salt });
-const ballot = { proposal, choice, salt, signature: sign(message, fs.readFileSync(key, 'utf8'), { namespace: 'republic' }) };
+const at = new Date().toISOString();
+// The timestamp is inside the signed payload: a later ballot provably replaces
+// an earlier one, and an old ballot cannot be replayed to undo a change of mind.
+const message = canonical({ proposal, choice, at, salt });
+const ballot = { proposal, choice, at, salt, signature: sign(message, fs.readFileSync(key, 'utf8'), { namespace: 'republic' }) };
 
 const dir = path.join('ballots', proposal);
 fs.mkdirSync(dir, { recursive: true });
+const existedBefore = fs.existsSync(path.join(dir, `${citizen}.json`));
 fs.writeFileSync(path.join(dir, `${citizen}.json`), JSON.stringify(ballot, null, 2) + '\n');
-console.log(`Ballot written to ${dir}/${citizen}.json`);
+const existed = existedBefore;
+console.log(`Ballot written to ${dir}/${citizen}.json${existed ? ' (replacing your earlier ballot)' : ''}`);
 console.log(`Your receipt: ${crypto.createHash('sha256').update(message).digest('hex').slice(0, 16)}`);
