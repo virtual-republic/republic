@@ -32,8 +32,7 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "tally: ${{ inputs.proposal }} (art-08/§44)"
           git push -u origin "$BR" --force
-          gh pr create --title "Tally — ${{ inputs.proposal }}" --body-file tally.txt \
-            --base "${{ github.event.repository.default_branch }}" || \
-          gh pr edit "$BR" --body-file tally.txt
+          gh pr create --title "Tally — ${{ inputs.proposal }}" --body-file tally.txt --base "${{ github.event.repository.default_branch }}" \
+            || echo "::warning::Actions cannot open pull requests here. The branch is pushed; open it at https://github.com/$GITHUB_REPOSITORY/pull/new/$BR"
       - name: Post the count to the discussion
         run: cat tally.txt >> $GITHUB_STEP_SUMMARY

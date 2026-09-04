@@ -46,8 +46,8 @@ jobs:
           git add ballots/ journal/ ledger/
           git commit -m "close and enact (art-08/§43/¶5, art-08/§45/¶1)"
           git push -u origin "$BR"
-          gh pr create --title "Close and enact" --body-file close.txt \
-            --base "${{ github.event.repository.default_branch }}"
+          gh pr create --title "Close and enact" --body-file close.txt --base "${{ github.event.repository.default_branch }}" \
+            || echo "::warning::Actions cannot open pull requests here. The branch is pushed; open it at https://github.com/$GITHUB_REPOSITORY/pull/new/$BR"
 
       - if: always()
         run: cat close.txt >> $GITHUB_STEP_SUMMARY || true
