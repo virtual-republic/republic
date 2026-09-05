@@ -11,6 +11,7 @@ import { buildCorpus, linkify, isoDate } from './lib/corpus.js';
 import { read, verifyChain, checkpointList } from './lib/events.js';
 import { citizens, activeCitizens, entities, offices } from './lib/registers.js';
 import { params, classes } from './lib/params.js';
+import { ledgerState, accounts, contracts, contractComplete, TREASURY } from './lib/value.js';
 
 const ROOT = process.cwd();
 const OUT = path.join(ROOT, 'dist');
@@ -34,6 +35,10 @@ const ents = entities(ROOT).map((e) => {
   return { ...e, charterBody: f.slice(end + 4) };
 });
 const offs = offices(ROOT);
+const V = ledgerState(ROOT);
+const ACCTS = accounts(ROOT);
+const CONTRACTS = contracts(ROOT);
+const UNIT = P.value.unit;
 const NAME = C.constitution.meta.republic.name || C.constitution.meta.republic.name_en || 'The Republic';
 // The register is state and may still carry pre-rename field names.
 const titleOf = (o) => o.title || o.title_en || o.id;
@@ -94,7 +99,7 @@ for (const p of C.proposals) for (const c of [].concat(p.cites || [])) cite(Stri
 // ------------------------------------------------------------------ page ---
 
 const NAV = [['', 'Republic'], ['constitution', 'Constitution'], ['assembly', 'Assembly'],
-             ['law', 'Law'], ['journal', 'Journal'], ['register', 'Register'], ['office', 'Office'], ['ledger', 'Ledger']];
+             ['law', 'Law'], ['treasury', 'Value'], ['journal', 'Journal'], ['register', 'Register'], ['office', 'Office'], ['ledger', 'Ledger']];
 
 function page(title, body, { on = '', script = '', narrow = false } = {}) {
   return `<!doctype html>
@@ -697,6 +702,157 @@ function statuteSections(secs, slugId) {
   }).join('');
 }
 
+// ---- value: accounts, instruments, exchange, contracts ---------------------
+
+const holdingsOf = (a) => [...(V.holdings.get(a) || new Map())].filter(([, q]) => q > 0);
+const instrumentList = [...V.instruments.entries()];
+
+write('treasury', page('Value', `
+  <h1>Value<span class="sub">The ${esc(UNIT)} has no value outside the Republic and may not be sold, redeemed, or exchanged — art-09/§48/¶2.</span></h1>
+
+  <h2>Accounts</h2>
+  <table><thead><tr><th>Account</th><th>Kind</th><th>${esc(UNIT[0].toUpperCase() + UNIT.slice(1))}s</th><th>Instruments</th></tr></thead>
+  <tbody>${[...ACCTS.entries()].map(([id, meta]) => `<tr>
+    <td>${esc(id)}</td><td class="q">${esc(meta.kind)}</td>
+    <td>${V.balances.get(id) || 0}</td>
+    <td class="q">${holdingsOf(id).map(([i, q]) => `${q} × ${esc(i)}`).join('<br>') || '—'}</td></tr>`).join('')}</tbody></table>
+  <p class="note">Issued in total: ${V.issued}. A transfer neither creates nor destroys value — art-02/§12/¶2.</p>
+
+  <h2>Instruments</h2>
+  ${instrumentList.length ? `<table><thead><tr><th>Instrument</th><th>Issuer</th><th>Issued</th></tr></thead>
+  <tbody>${instrumentList.map(([i, m]) => `<tr><td>${esc(i)}</td>
+    <td><a href="${u(`/entities/${m.issuer}/`)}">${esc(m.issuer)}</a></td><td class="q">${m.issued}</td></tr>`).join('')}</tbody></table>`
+  : '<p class="quiet">None issued. A company may issue a share in itself — art-09/§51/¶1.</p>'}
+
+  <h2>Transfer</h2>
+  <p id="msg" class="msg quiet"></p>
+  <label for="tfrom">From</label><select id="tfrom"></select>
+  <label for="tto">To</label><select id="tto"></select>
+  <label for="twhat">What</label><select id="twhat"><option value="unit">${esc(UNIT)}s</option>${instrumentList.map(([i]) => `<option value="${esc(i)}">${esc(i)}</option>`).join('')}</select>
+  <label for="tamt">Amount</label><input type="text" id="tamt" inputmode="numeric">
+  <label for="tnote">Note (optional)</label><input type="text" id="tnote">
+  <div class="row"><button id="tsign" disabled>Sign transfer</button><a id="tcommit" class="button" hidden>Open on GitHub</a></div>
+  <div class="out" id="tout" hidden></div>
+  <p class="note">A transfer is signed here and settled by the workflow, which checks the balance and records it — art-09/§50/¶2.</p>`,
+{ on: 'treasury', script: IDENT + `
+  const accts = await getJSON('${u('/data/accounts.json')}');
+  const mine = () => accts.filter((a) => a.id === me || (a.organs || []).some((o) => (o.held_by || []).includes(me)) || (a.id === 'treasury' && a.officer === me));
+  function fill() {
+    $('tfrom').innerHTML = mine().map((a) => '<option>' + a.id + '</option>').join('') || '<option value="">no account</option>';
+    $('tto').innerHTML = accts.map((a) => '<option>' + a.id + '</option>').join('');
+    $('tsign').disabled = !(priv && me && mine().length);
+  }
+  document.addEventListener('identity', fill); fill();
+
+  $('tsign').onclick = async () => {
+    try {
+      if (!me) throw new Error('load a key that is on the register');
+      const n = Number($('tamt').value);
+      if (!n || n <= 0) throw new Error('give an amount');
+      const what = $('twhat').value;
+      const body = { kind: what === 'unit' ? 'transfer' : 'instrument-transfer',
+        from: $('tfrom').value, to: $('tto').value, by: me,
+        ...(what === 'unit' ? { amount: n } : { instrument: what, quantity: n }),
+        ...($('tnote').value ? { note: $('tnote').value } : {}),
+        at: new Date().toISOString(), salt: [...crypto.getRandomValues(new Uint8Array(12))].map((b) => b.toString(16).padStart(2, '0')).join('') };
+      if (body.from === body.to) throw new Error('from and to are the same account');
+      body.signature = await R.sign(R.canonical(body), priv, { namespace: 'republic' });
+      $('tout').hidden = false; $('tout').textContent = JSON.stringify(body, null, 2);
+      const name = body.at.replace(/[:.]/g, '-') + '-' + body.from + '-' + body.to;
+      $('tcommit').href = R.commitUrl(meta.repo, meta.branch, 'transfers/' + name + '.json', JSON.stringify(body, null, 2), 'transfer ' + body.from + ' to ' + body.to);
+      $('tcommit').hidden = false;
+      $('msg').className = 'msg'; $('msg').textContent = 'Signed. Commit it, then run the settle workflow.';
+    } catch (e) { problem('could not sign', e); }
+  };` }));
+
+write('exchange', page('Exchange', `
+  <h1>Exchange<span class="sub">Cleared by periodic auction at a uniform price, with no priority to the order of arrival — art-09/§52/¶2.</span></h1>
+  ${instrumentList.length ? `
+  <h2>Place an order</h2>
+  <p id="msg" class="msg quiet"></p>
+  <label for="oside">Side</label><select id="oside"><option value="buy">buy</option><option value="sell">sell</option></select>
+  <label for="oinst">Instrument</label><select id="oinst">${instrumentList.map(([i]) => `<option>${esc(i)}</option>`).join('')}</select>
+  <label for="oacct">Account</label><select id="oacct"></select>
+  <label for="oqty">Quantity</label><input type="text" id="oqty" inputmode="numeric">
+  <label for="oprice">Price in ${esc(UNIT)}s</label><input type="text" id="oprice" inputmode="numeric">
+  <div class="row"><button id="osign" disabled>Sign order</button><a id="ocommit" class="button" hidden>Open on GitHub</a></div>
+  <div class="out" id="oout" hidden></div>`
+  : '<p class="quiet">No instrument has been issued, so there is nothing to trade.</p>'}
+
+  <h2>Trades</h2>
+  <table><thead><tr><th>Instrument</th><th>Seller</th><th>Buyer</th><th>Quantity</th><th>Price</th></tr></thead>
+  <tbody>${events.filter((e) => e.kind === 'order.matched').reverse().map((e) => `<tr>
+    <td>${esc(e.payload.instrument)}</td><td class="q">${esc(e.payload.seller)}</td><td class="q">${esc(e.payload.buyer)}</td>
+    <td>${e.payload.quantity}</td><td>${e.payload.price}</td></tr>`).join('') || '<tr><td colspan="5" class="q">No trades yet.</td></tr>'}</tbody></table>`,
+{ on: 'treasury', script: IDENT + `
+  const accts = await getJSON('${u('/data/accounts.json')}');
+  const mine = () => accts.filter((a) => a.id === me || (a.organs || []).some((o) => (o.held_by || []).includes(me)));
+  function fill() {
+    if (!$('oacct')) return;
+    $('oacct').innerHTML = mine().map((a) => '<option>' + a.id + '</option>').join('') || '<option value="">no account</option>';
+    $('osign').disabled = !(priv && me && mine().length);
+  }
+  document.addEventListener('identity', fill); fill();
+  if ($('osign')) $('osign').onclick = async () => {
+    try {
+      if (!me) throw new Error('load a key that is on the register');
+      const q = Number($('oqty').value), pr = Number($('oprice').value);
+      if (!q || !pr) throw new Error('give a quantity and a price');
+      const body = { kind: 'order', side: $('oside').value, instrument: $('oinst').value,
+        quantity: q, price: pr, account: $('oacct').value, by: me,
+        at: new Date().toISOString(), salt: [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('') };
+      body.signature = await R.sign(R.canonical(body), priv, { namespace: 'republic' });
+      $('oout').hidden = false; $('oout').textContent = JSON.stringify(body, null, 2);
+      const name = body.at.replace(/[:.]/g, '-') + '-' + body.account + '-' + body.side;
+      $('ocommit').href = R.commitUrl(meta.repo, meta.branch, 'orders/' + name + '.json', JSON.stringify(body, null, 2), 'order ' + body.side + ' ' + body.instrument);
+      $('ocommit').hidden = false;
+      $('msg').className = 'msg'; $('msg').textContent = 'Signed. Commit it; it clears at the next auction.';
+    } catch (e) { problem('could not sign', e); }
+  };` }));
+
+write('contracts', page('Contracts', `
+  <h1>Contracts<span class="sub">Drafted by one party, executed when every party has signed.</span></h1>
+  <ul class="list">${CONTRACTS.length ? CONTRACTS.map((c) => {
+    const signed = c.signatures.map((s) => s.by);
+    const need = [].concat(c.parties || []);
+    return `<li><a href="${u(`/contracts/${c.id}/`)}">${esc(c.title || c.id)}</a>
+      <span class="meta">${need.map((x) => esc(x) + (signed.includes(x) ? ' ✓' : ' —')).join('  ')}</span></li>`;
+  }).join('') : '<li class="quiet">None yet.</li>'}</ul>`, { on: 'treasury', narrow: true }));
+
+for (const c of CONTRACTS) {
+  const need = [].concat(c.parties || []);
+  const signed = c.signatures.map((s) => s.by);
+  write(`contracts/${c.id}`, page(c.title || c.id, `
+    <p class="crumb"><a href="${u('/contracts/')}">Contracts</a> · ${esc(c.id)}</p>
+    <h1>${esc(c.title || c.id)}<span class="sub">${c.executed ? 'executed ' + esc(isoDate(c.executed)) : 'awaiting signature'} · drafted ${esc(isoDate(c.drafted))}</span></h1>
+    <h2>Parties</h2>
+    <table><tbody>${need.map((x) => `<tr><td>${esc(x)}</td><td class="q">${signed.includes(x) ? 'signed' : 'not yet signed'}</td></tr>`).join('')}</tbody></table>
+    <article class="law">${markdown(c.body)}</article>
+    <h2>Sign</h2>
+    <p id="msg" class="msg quiet"></p>
+    <div class="row"><button id="csign" disabled>Sign this contract</button><a id="ccommit" class="button" hidden>Open on GitHub</a></div>
+    <div class="out" id="cout" hidden></div>
+    <p class="note">A signature covers the text as it now stands. An alteration afterwards voids every signature given — § 3 ³.</p>`,
+  { on: 'treasury', narrow: true, script: IDENT + `
+    const parties = ${JSON.stringify(need)};
+    const text = await (await fetch('${u(`/data/contracts/${c.id}.txt`)}')).text();
+    function ok() { $('csign').disabled = !(priv && me && parties.includes(me)); }
+    document.addEventListener('identity', ok); ok();
+    $('csign').onclick = async () => {
+      try {
+        if (!parties.includes(me)) throw new Error('you are not a party to this contract');
+        const body = { kind: 'contract-signature', contract: ${JSON.stringify(c.id)}, party: me, by: me,
+          document: await R.sha256(text), at: new Date().toISOString(),
+          salt: [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('') };
+        body.signature = await R.sign(R.canonical(body), priv, { namespace: 'republic' });
+        $('cout').hidden = false; $('cout').textContent = JSON.stringify(body, null, 2);
+        $('ccommit').href = R.commitUrl(meta.repo, meta.branch, 'contracts/${c.id}/' + me + '.json', JSON.stringify(body, null, 2), 'sign ${c.id}');
+        $('ccommit').hidden = false;
+        $('msg').className = 'msg'; $('msg').textContent = 'Signed. Commit it; the contract executes when every party has.';
+      } catch (e) { problem('could not sign', e); }
+    };` }));
+}
+
 write('journal', page('Journal', `
   <h1>Journal<span class="sub">Publication is promulgation — art-05/§25/¶2.</span></h1>
   <ul class="list">${C.journal.slice().reverse().map((j) =>
@@ -786,6 +942,13 @@ fs.mkdirSync(path.join(OUT, 'data'), { recursive: true });
 fs.writeFileSync(path.join(OUT, 'data/resolve.json'), JSON.stringify(resolveIndex));
 fs.writeFileSync(path.join(OUT, 'data/citizens.json'), JSON.stringify(roll.map((c) => ({ id: c.id, status: c.status, admitted: isoDate(c.admitted), keys: c.keys || [] })), null, 2));
 fs.writeFileSync(path.join(OUT, 'data/offices.json'), JSON.stringify(offs, null, 2));
+const treasurer = offs.find((o) => (o.permissions || []).includes('treasury.disburse'));
+fs.writeFileSync(path.join(OUT, 'data/accounts.json'), JSON.stringify([...ACCTS.entries()].map(([id, m]) => ({
+  id, kind: m.kind, organs: m.organs || [], ...(id === TREASURY && treasurer ? { officer: treasurer.holder } : {}),
+  balance: V.balances.get(id) || 0,
+})), null, 2));
+fs.mkdirSync(path.join(OUT, 'data/contracts'), { recursive: true });
+for (const c of CONTRACTS) fs.writeFileSync(path.join(OUT, `data/contracts/${c.id}.txt`), fs.readFileSync(path.join(ROOT, c.file), 'utf8'));
 fs.writeFileSync(path.join(OUT, 'data/entities.json'), JSON.stringify(ents.map(({ charterBody, ...e }) => e), null, 2));
 fs.writeFileSync(path.join(OUT, 'data/proposals.json'), JSON.stringify(C.proposals.map((p) => ({ id: p.id, title: p.title, class: p.class, closes: closesOf(p)?.toISOString() ?? null })), null, 2));
 fs.writeFileSync(path.join(OUT, 'data/meta.json'), JSON.stringify({ repo: REPO, branch: BRANCH, base: BASE, classes: CLASSES, parameters: P }, null, 2));

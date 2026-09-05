@@ -24,7 +24,12 @@
     "close": "node tools/close.js",
     "depart": "node tools/depart.js",
     "why": "node tools/why.js",
-    "stand": "node tools/stand.js"
+    "stand": "node tools/stand.js",
+    "pay": "node tools/pay.js",
+    "issue": "node tools/issue.js",
+    "settle": "node tools/settle.js",
+    "order": "node tools/order.js",
+    "contract": "node tools/contract.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

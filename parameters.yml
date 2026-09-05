@@ -68,10 +68,60 @@ admission:
   minimum_age: 16
   objection_days: 7
 
+
+journal:
+  auto_publish_on_enactment: true
+
+# --- Entities (art-04) -------------------------------------------------------
+# Who may form what. "citizen" — as of right, art-04/§19/¶1. "law" — only on a
+# carried measure, and only the Registrar may enter it, citing that measure.
+entities:
+  types:
+    association:
+      label: Association
+      formation: citizen
+      may_hold_account: true
+      may_issue_instruments: false
+    company:
+      label: Company
+      formation: citizen
+      may_hold_account: true
+      may_issue_instruments: true
+    foundation:
+      label: Foundation
+      formation: citizen
+      may_hold_account: true
+      may_issue_instruments: false
+    commune:
+      label: Commune
+      formation: law
+      established_by: registrar
+      may_hold_account: true
+      may_issue_instruments: false
+    organ:
+      label: Organ of the Republic
+      formation: law
+      established_by: registrar
+      may_hold_account: true
+      may_issue_instruments: false
+
+# --- Value (art-09) ----------------------------------------------------------
 value:
   unit: obol
   subunit: mina
   issue_cap_per_resolution: 100000
+  transfer:
+    # A transfer is signed by the account holder and settled by the workflow.
+    require_signature: true
+    allow_negative: false
+  exchange:
+    # art-09/§52/¶2 — a periodic auction at a uniform price, with no priority
+    # given to the order of arrival within a period.
+    method: uniform_price_auction
+    period_hours: 24
 
-journal:
-  auto_publish_on_enactment: true
+# --- Contracts ---------------------------------------------------------------
+contracts:
+  # Authored by one party, executed only when every named party has signed.
+  require_all_parties: true
+  expiry_days: 30

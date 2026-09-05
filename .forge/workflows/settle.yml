@@ -1,0 +1,50 @@
+# art-09/§50/¶2 — a transfer is a record and takes effect when recorded.
+# art-09/§52/¶2 — the exchange clears by periodic auction at a uniform price.
+#
+# Signed transfers, orders and contract signatures are files until this runs.
+# It verifies every signature, checks every balance, clears the auction, and
+# records the result. Nothing else writes value into the ledger.
+name: settle
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+  push:
+    paths: ['transfers/**', 'orders/**', 'contracts/**']
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    permissions: { contents: write, pull-requests: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci --omit=dev || npm install --omit=dev
+
+      - name: What is pending?
+        run: node tools/settle.js --dry-run | tee pending.txt
+
+      - name: Settle
+        run: node tools/settle.js | tee settle.txt
+
+      - name: The register must still verify
+        run: node tools/verify.js && node tools/test.js
+
+      - name: Propose the settlement
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then echo "nothing settled"; exit 0; fi
+          BR="settle/$(date -u +%Y-%m-%d-%H%M)"
+          git config user.name  "Treasurer"
+          git config user.email "treasurer@users.noreply.github.com"
+          git checkout -b "$BR"
+          git add ledger/ transfers/ orders/ contracts/ settled/ 2>/dev/null || true
+          git commit -m "settle (art-09/§50/¶2, art-09/§52/¶2)"
+          git push -u origin "$BR"
+          gh pr create --title "Settlement" --body-file settle.txt --base "${{ github.event.repository.default_branch }}" \
+            || echo "::warning::Actions cannot open pull requests here. The branch is pushed; open it at https://github.com/$GITHUB_REPOSITORY/pull/new/$BR"
+
+      - if: always()
+        run: cat settle.txt >> $GITHUB_STEP_SUMMARY || true

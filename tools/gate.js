@@ -34,6 +34,11 @@ const RULES = [
   { pattern: /^journal\//,                 class: null, why: 'publication (art-05/§25)' },
   { pattern: /^register\/citizens\//,      class: null, why: 'admission takes effect on recording (art-03/§16/¶3)' },
   { pattern: /^register\/entities\//,      class: null, why: 'entities are formed as of right (art-04/§19/¶1)' },
+  { pattern: /^transfers\//,               class: null, why: 'a signed transfer, settled by the workflow (art-09/§50/¶2)' },
+  { pattern: /^orders\//,                  class: null, why: 'an order on the exchange (art-09/§52/¶3)' },
+  { pattern: /^settled\//,                 class: null, why: 'settled instruments' },
+  { pattern: /^contracts\//,               class: null, why: 'a contract between parties, not an act of the Assembly' },
+  { pattern: /^charters\//,                class: null, why: 'an entity charter (art-04/§21/¶1)' },
   { pattern: /^(site|dist)\//,             class: null, why: 'presentation, not law' },
   { pattern: /^(README|SETUP)/,            class: null, why: 'documentation' },
 
