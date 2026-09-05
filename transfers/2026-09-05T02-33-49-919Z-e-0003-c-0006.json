@@ -1,0 +1,10 @@
+{
+  "kind": "transfer",
+  "from": "e-0003",
+  "to": "c-0006",
+  "by": "c-0006",
+  "amount": 10,
+  "at": "2026-09-05T02:33:49.919Z",
+  "salt": "77891d4e4c6745f942bad4dc",
+  "signature": "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg4o0GP+Fw7KOAuZ0tJEUc/YJx40\nZEWwPRyGQPv4Udm4MAAAAIcmVwdWJsaWMAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVk\nMjU1MTkAAABASkrt7gPgrD354t+kOHrAgIQS7eUIJMLEJ+sFzD1SXlmZ6B8zCx2V6DN6D9\nP5a+1xBHuHBMPxLw3QXYFKyx/JCw==\n-----END SSH SIGNATURE-----\n"
+}
