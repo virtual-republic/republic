@@ -55,6 +55,16 @@ function closesOf(p) {
 }
 const isOpen = (p) => { const c = closesOf(p); return c ? new Date() < c : true; };
 
+// A measure is open only if the calendar says so AND no result has been
+// recorded. art-08/§43/¶5 lets a measure close early, so the date alone lies.
+function statusOf(p) {
+  const r = resultFor(p.id);
+  if (r && r.open === false) return { open: false, label: r.outcome?.carried ? 'carried' : 'not carried', carried: !!r.outcome?.carried };
+  if (r && r.outcome && r.outcome.open === false) return { open: false, label: r.outcome.carried ? 'carried' : 'not carried', carried: !!r.outcome.carried };
+  if (!isOpen(p)) return { open: false, label: 'closed, not yet counted', carried: false };
+  return { open: true, label: 'open', carried: false };
+}
+
 function ballotsFor(id) {
   const d = path.join(ROOT, 'ballots', id);
   if (!fs.existsSync(d)) return {};
@@ -84,7 +94,7 @@ for (const p of C.proposals) for (const c of [].concat(p.cites || [])) cite(Stri
 // ------------------------------------------------------------------ page ---
 
 const NAV = [['', 'Republic'], ['constitution', 'Constitution'], ['assembly', 'Assembly'],
-             ['journal', 'Journal'], ['register', 'Register'], ['office', 'Office'], ['ledger', 'Ledger']];
+             ['law', 'Law'], ['journal', 'Journal'], ['register', 'Register'], ['office', 'Office'], ['ledger', 'Ledger']];
 
 function page(title, body, { on = '', script = '', narrow = false } = {}) {
   return `<!doctype html>
@@ -133,20 +143,22 @@ const write = (rel, html) => {
 // inside an issue resolves like anywhere else.
 function markdown(src) {
   const out = [];
-  let list = null, para = [];
+  let list = null, para = [], item = null, mark = null;
 
   const inline = (t) => link(t)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
     .replace(/`([^`]+)`/g, '<code>$1</code>');
 
-  const flushPara = () => { if (para.length) { out.push(`<p>${inline(para.join(' '))}</p>`); para = []; } };
-  const flushList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  const flushItem = () => { if (item) { out[out.length - 1] = `<li>${inline(item.join(' '))}</li>`; item = null; } };
+  const flushMark = () => { if (mark) { out[out.length - 1] = para0(mark.n, mark.text.join(' ')); mark = null; } };
+  const flushPara = () => { flushItem(); flushMark(); if (para.length) { out.push(`<p>${inline(para.join(' '))}</p>`); para = []; } };
+  const flushList = () => { flushItem(); if (list) { out.push(`</${list}>`); list = null; } };
 
   for (const raw of String(src).split('\n')) {
     const line = raw.trim();
 
-    if (!line) { flushPara(); flushList(); continue; }
+    if (!line) { flushPara(); continue; }
 
     if (/^---+$/.test(line)) { flushPara(); flushList(); out.push('<hr class="rule">'); continue; }
 
@@ -154,23 +166,28 @@ function markdown(src) {
     if (h) { flushPara(); flushList(); const n = Math.min(h[1].length + 1, 4); out.push(`<h${n}>${inline(h[2])}</h${n}>`); continue; }
 
     const ul = line.match(/^[-*]\s+(.*)$/);
-    if (ul) { flushPara(); if (list !== 'ul') { flushList(); out.push('<ul class="md">'); list = 'ul'; } out.push(`<li>${inline(ul[1])}</li>`); continue; }
+    if (ul) { flushPara(); if (list !== 'ul') { flushList(); out.push('<ul class="md">'); list = 'ul'; } item = [ul[1]]; out.push(''); continue; }
 
     const ol = line.match(/^\d+[.)]\s+(.*)$/);
-    if (ol) { flushPara(); if (list !== 'ol') { flushList(); out.push('<ol class="md">'); list = 'ol'; } out.push(`<li>${inline(ol[1])}</li>`); continue; }
+    if (ol) { flushPara(); if (list !== 'ol') { flushList(); out.push('<ol class="md">'); list = 'ol'; } item = [ol[1]]; out.push(''); continue; }
 
     const q = line.match(/^>\s?(.*)$/);
     if (q) { flushPara(); flushList(); out.push(`<blockquote>${inline(q[1])}</blockquote>`); continue; }
 
     // a numbered paragraph of law keeps its gutter
     const mk = line.match(/^([¹²³⁴⁵⁶⁷⁸⁹])\s+(.*)$/);
-    if (mk) { flushPara(); flushList(); out.push(para0('¹²³⁴⁵⁶⁷⁸⁹'.indexOf(mk[1]) + 1, mk[2])); continue; }
+    if (mk) { flushPara(); flushList(); mark = { n: '¹²³⁴⁵⁶⁷⁸⁹'.indexOf(mk[1]) + 1, text: [mk[2]] }; out.push(''); continue; }
+
+    // A line that continues the thing above it belongs to that thing, not to a
+    // paragraph of its own. This is what broke wrapped list items.
+    if (item) { item.push(line); continue; }
+    if (mark) { mark.text.push(line); continue; }
 
     flushList();
     para.push(line);
   }
-  flushPara(); flushList();
-  return out.join('\n');
+  flushPara(); flushList(); flushItem(); flushMark();
+  return out.filter(Boolean).join('\n');
 }
 const para0 = (n, t) => `<p class="para"><span class="mark">${n}</span><span class="text">${link(t)}</span></p>`;
 
@@ -241,11 +258,19 @@ write('', page('Republic', `
   <p class="lede">A voluntary civic association governed by a text its citizens wrote. Every act is recorded, published, and verifiable by anyone.</p>
 
   <h2>Before the Assembly</h2>
-  <ul class="list">${C.proposals.length ? C.proposals.slice().reverse().map((p) => {
-    const r = resultFor(p.id);
-    return `<li><a href="${u(`/assembly/${p.id}/`)}">${esc(p.title || p.id)}</a>
-      <span class="meta">${isOpen(p) ? 'open' : r?.outcome?.carried ? 'carried' : 'not carried'}</span></li>`;
-  }).join('') : '<li class="quiet">Nothing before the Assembly.</li>'}</ul>
+  <ul class="list">${(() => {
+    const live = C.proposals.filter((p) => statusOf(p).open);
+    return live.length ? live.slice().reverse().map((p) => {
+      const st = statusOf(p);
+      return `<li><a href="${u(`/assembly/${p.id}/`)}">${esc(p.title || p.id)}</a><span class="meta">closes ${esc(closesOf(p)?.toISOString().slice(0, 10) || '')}</span></li>`;
+    }).join('') : '<li class="quiet">Nothing is before the Assembly.</li>';
+  })()}</ul>
+
+  <h2>Law in force</h2>
+  <ul class="list">${C.statutes.length ? C.statutes.slice().reverse().map((st) => {
+    const v = st.versions.en || Object.values(st.versions)[0];
+    return `<li><a href="${u(`/law/${st.slug}/`)}">${esc(v.title || st.slug)}</a><span class="meta">${esc(isoDate(v.enacted))}</span></li>`;
+  }).join('') : '<li class="quiet">Nothing enacted yet.</li>'}</ul>
 
   <h2>Journal</h2>
   <ul class="list">${C.journal.slice(-5).reverse().map((j) =>
@@ -371,9 +396,9 @@ write('key', page('Key', `
 write('assembly', page('Assembly', `
   <h1>Assembly<span class="sub">The Assembly is all citizens — art-06/§30/¶1.</span></h1>
   <ul class="list">${C.proposals.length ? C.proposals.slice().reverse().map((p) => {
-    const r = resultFor(p.id);
+    const st = statusOf(p);
     return `<li><a href="${u(`/assembly/${p.id}/`)}">${esc(p.title || p.id)}</a>
-      <span class="meta">${esc(CLASSES[p.class]?.label || p.class)} · ${isOpen(p) ? 'open' : r?.outcome?.carried ? 'carried' : 'not carried'}</span></li>`;
+      <span class="meta">${esc(CLASSES[p.class]?.label || p.class)} · ${esc(st.label)}</span></li>`;
   }).join('') : '<li class="quiet">Nothing before the Assembly.</li>'}</ul>
 
   <h2>Lay a measure</h2>
@@ -412,7 +437,8 @@ write('assembly', page('Assembly', `
 
 for (const p of C.proposals) {
   const cl = closesOf(p);
-  const open = isOpen(p);
+  const st = statusOf(p);
+  const open = st.open;
   const election = p.class === 'election';
   const cands = [].concat(p.candidates || []);
   fs.mkdirSync(path.join(OUT, 'data/ballots'), { recursive: true });
@@ -420,7 +446,7 @@ for (const p of C.proposals) {
 
   write(`assembly/${p.id}`, page(p.title || p.id, `
     <p class="crumb"><a href="${u('/assembly/')}">Assembly</a> · ${esc(p.id)}</p>
-    <h1>${esc(p.title || p.id)}<span class="sub">${esc(CLASSES[p.class]?.label || p.class)} · sponsored by ${esc(p.sponsor || '')} · ${open ? 'closes ' + (cl ? cl.toISOString().slice(0, 10) : '') : 'closed'}</span></h1>
+    <h1>${esc(p.title || p.id)}<span class="sub">${esc(CLASSES[p.class]?.label || p.class)} · sponsored by ${esc(p.sponsor || '')} · ${open ? 'closes ' + (cl ? cl.toISOString().slice(0, 10) : '') : esc(st.label)}</span></h1>
 
     <p class="state" id="state">counting…</p>
 
@@ -428,6 +454,8 @@ for (const p of C.proposals) {
 
     <h2>Made under</h2>
     <ul class="list">${[].concat(p.cites || []).map((c) => `<li>${link(String(c))}</li>`).join('') || '<li class="quiet">—</li>'}</ul>
+    <div class="row"><button class="plain" data-copy="prop.${esc(p.id)}">copy citation</button>
+      <a class="button" target="_blank" rel="noopener" href="https://github.com/${REPO}/edit/${BRANCH}/${esc(p.file || '')}">Edit the measure</a></div>
 
     ${open ? `<h2>${election ? 'Rank the candidates' : 'Vote'}</h2>
     <p id="msg" class="msg quiet"></p>
@@ -601,6 +629,73 @@ write('office', page('Office', `
   };` }));
 
 // ---- journal, register, entities, ledger -----------------------------------
+
+const statuteMeta = (st) => st.versions.en || Object.values(st.versions)[0] || {};
+
+write('law', page('Law', `
+  <h1>Law in force<span class="sub">Statute is where rates, procedure and detail belong — art-01/§4/¶3.</span></h1>
+  ${C.statutes.length ? `
+  <div class="row">
+    <button class="plain" data-sort="title">title</button>
+    <button class="plain" data-sort="enacted">date</button>
+    <button class="plain" data-sort="class">class</button>
+    <button class="plain" data-sort="id">identifier</button>
+  </div>
+  <table id="laws"><thead><tr><th>Statute</th><th>Class</th><th>Enacted</th><th>Cite as</th></tr></thead>
+  <tbody>${C.statutes.map((st) => {
+    const m = statuteMeta(st);
+    return `<tr data-title="${esc(m.title || st.slug)}" data-enacted="${esc(isoDate(m.enacted))}" data-class="${esc(m.class || '')}" data-id="${esc(st.slug)}">
+      <td><a href="${u(`/law/${st.slug}/`)}">${esc(m.title || st.slug)}</a></td>
+      <td class="q">${esc(CLASSES[m.class]?.label || m.class || '')}</td>
+      <td class="q">${esc(isoDate(m.enacted))}</td>
+      <td class="q">stat.${esc(st.slug)}</td></tr>`;
+  }).join('')}</tbody></table>`
+  : '<p class="quiet">Nothing has been enacted yet. A measure that carries becomes law on publication — art-08/§45/¶1.</p>'}`,
+  { on: 'law', script: `
+  let dir = 1, last = null;
+  for (const b of document.querySelectorAll('[data-sort]')) b.onclick = () => {
+    const k = b.dataset.sort;
+    dir = (k === last) ? -dir : 1; last = k;
+    const body = document.querySelector('#laws tbody');
+    [...body.rows].sort((a, x) => (a.dataset[k] || '').localeCompare(x.dataset[k] || '') * dir).forEach((r) => body.appendChild(r));
+    for (const o of document.querySelectorAll('[data-sort]')) o.style.color = '';
+    b.style.color = 'var(--ink)';
+  };` }));
+
+for (const st of C.statutes) {
+  const m = statuteMeta(st);
+  const secs = m.sections || [];
+  const links = [].concat(m.cites || []);
+  const back2 = back.get(`stat.${st.slug}`) || [];
+  write(`law/${st.slug}`, page(m.title || st.slug, `
+    <p class="crumb"><a href="${u('/law/')}">Law</a> · stat.${esc(st.slug)}</p>
+    <h1>${esc(m.title || st.slug)}<span class="sub">${esc(CLASSES[m.class]?.label || m.class || '')}${m.enacted ? ' · enacted ' + esc(isoDate(m.enacted)) : ''}${m.measure ? ' · ' + esc(m.measure) : ''}</span></h1>
+    <div class="row">
+      <button class="plain" data-copy="stat.${esc(st.slug)}">copy citation</button>
+      <a class="button" target="_blank" rel="noopener" href="https://github.com/${REPO}/edit/${BRANCH}/statutes/${esc(st.slug)}.md">Edit this statute</a>
+    </div>
+    <p class="note">Editing statute is an act of the Assembly. The gate refuses the change unless a measure of the right class has carried — art-08/§45/¶1.</p>
+    <article class="law">${secs.length ? statuteSections(secs, st.slug) : ''}</article>
+    ${links.length ? `<h2>Made under</h2><ul class="list">${links.map((c) => `<li>${link(String(c))}</li>`).join('')}</ul>` : ''}
+    ${m.journal ? `<h2>Promulgated</h2><ul class="list"><li><a href="${u(`/journal/${m.journal}/`)}">Journal ${m.journal}</a></li>${m.measure ? `<li><a href="${u(`/assembly/${m.measure}/`)}">${esc(m.measure)}</a></li>` : ''}</ul>` : ''}
+    ${back2.length ? `<h2>Cited by</h2><ul class="list">${back2.map((l) => `<li><a href="${u(l.href)}">${esc(l.label)}</a><span class="meta">${esc(String(l.at || '').slice(0, 10))}</span></li>`).join('')}</ul>` : ''}`,
+  { on: 'law', narrow: true, script: `
+    for (const b of document.querySelectorAll('[data-copy]')) b.onclick = () => {
+      navigator.clipboard.writeText(b.dataset.copy + '  ' + location.href);
+      b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy citation', 1200);
+    };` }));
+}
+
+function statuteSections(secs, slugId) {
+  return secs.map((sec) => {
+    const c = `stat.${slugId}/§${sec.num}`;
+    return `<section class="sec" id="s${sec.num}">
+      <h2><span class="n">§ ${sec.num}</span> ${esc(sec.heading)}
+        <a class="anchor" href="#s${sec.num}" data-cite="${c}" title="copy citation">§</a></h2>
+      ${sec.paragraphs.map((p) => para(p.num, p.text, `s${sec.num}p${p.num}`, `${c}/¶${p.num}`)).join('')}
+    </section>`;
+  }).join('');
+}
 
 write('journal', page('Journal', `
   <h1>Journal<span class="sub">Publication is promulgation — art-05/§25/¶2.</span></h1>

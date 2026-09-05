@@ -94,6 +94,36 @@ append(ROOT, {
   payload: { measure: id, class: front.class, journal: number, yes: result.outcome.yes, no: result.outcome.no },
 });
 
+// art-01/§4/¶3 — statute is where rates, procedures and detail belong.
+const STANDING = ['ordinary', 'organic', 'policy'];
+if (STANDING.includes(front.class)) {
+  const slug = (front.title || id).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+  fs.mkdirSync(path.join(ROOT, 'statutes'), { recursive: true });
+  const statute = path.join(ROOT, 'statutes', `${slug}.md`);
+  if (!fs.existsSync(statute)) {
+    fs.writeFileSync(statute, `---
+id: ${slug}
+title: ${front.title || id}
+class: ${front.class}
+enacted: ${today}
+measure: ${id}
+journal: ${number}
+cites: [${cites.join(', ')}]
+---
+
+${body}
+`);
+    append(ROOT, {
+      at: new Date().toISOString(),
+      author: keeper ? keeper.holder : front.sponsor,
+      kind: 'statute.enacted',
+      provision: 'art-01/§4/¶3',
+      payload: { statute: slug, measure: id, journal: number },
+    });
+    console.log(`  statute written to statutes/${slug}.md — citable as stat.${slug}/§1/¶1`);
+  }
+}
+
 console.log(`Enacted ${id}.`);
 console.log(`  Journal issue ${number} written to ${path.relative(ROOT, out)}`);
 console.log(`  enactment recorded under art-08/§45/¶1`);
