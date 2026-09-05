@@ -79,7 +79,7 @@ of decisive votes against a threshold of ${(result.outcome.threshold * 100).toFi
 
 The text as enacted:
 
-${body.replace(/^#+\s*/gm, '')}
+${body}
 `;
 
 fs.mkdirSync(path.join(journalDir, year), { recursive: true });

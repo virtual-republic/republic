@@ -22,9 +22,11 @@ jobs:
         run: |
           git config user.name "Keeper of the Journal"
           git config user.email "keeper@users.noreply.github.com"
-          git checkout -b "anchor/$(date -u +%s)"
+          BR="anchor/$(date -u +%s)"
+          git checkout -b "$BR"
           git add checkpoints/*.ots
           git diff --cached --quiet && exit 0
           git commit -m "anchor checkpoint (independent timestamp)"
-          git push -u origin HEAD
-          gh pr create --fill --base "${{ github.event.repository.default_branch }}"
+          git push -u origin "$BR"
+          gh pr create --fill --base "${{ github.event.repository.default_branch }}"  \
+            || echo "::warning::Actions cannot open pull requests here. The branch is pushed; open it at https://github.com/$GITHUB_REPOSITORY/pull/new/$BR"

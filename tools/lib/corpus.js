@@ -139,7 +139,7 @@ export function buildCorpus(root) {
     const year = isoDate(meta.date).slice(0, 4) || path.dirname(d.rel);
     const issue = { ...meta, date: isoDate(meta.date), year, body: body.trim(), id: `jour.${year}/${meta.number}` };
     journal.push(issue);
-    add(issue.id, { corpus: 'jour', href: `/journal/#j${meta.number}`, label: `Journal ${meta.number}`, kind: 'issue', document: `${year}/${meta.number}` });
+    add(issue.id, { corpus: 'jour', href: `/journal/${meta.number}/`, label: `Journal ${meta.number}`, kind: 'issue', document: `${year}/${meta.number}` });
   }
   journal.sort((a, b) => (a.number || 0) - (b.number || 0));
 

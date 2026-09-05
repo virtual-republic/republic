@@ -26,8 +26,12 @@ jobs:
         with: { node-version: '22' }
       - run: npm ci --omit=dev || npm install --omit=dev
 
-      - name: Before
-        run: node tools/why.js $(ls proposals/P-*.md 2>/dev/null | head -1 | sed 's|.*/\(P-[0-9]*\).*|\1|') || true
+      - name: The register before
+        run: |
+          echo "Active citizenships:"
+          grep -l 'status: active' register/citizens/*.yml | xargs -n1 basename
+          echo "Offices:"
+          grep -E '^\s+(id|holder):' register/offices.yml
 
       - name: Depart everyone except the kept citizenship
         run: |
@@ -48,8 +52,8 @@ jobs:
           git add register/ ledger/
           git commit -m "departures, keeping ${{ inputs.keep }} (art-03/§18/¶1, art-06/§29/¶4)"
           git push -u origin "$BR"
-          gh pr create --title "Roster — keep ${{ inputs.keep }}" --body-file roster.txt \
-            --base "${{ github.event.repository.default_branch }}"
+          gh pr create --title "Roster — keep ${{ inputs.keep }}" --body-file roster.txt --base "${{ github.event.repository.default_branch }}" \
+            || echo "::warning::Actions cannot open pull requests here. The branch is pushed; open it at https://github.com/$GITHUB_REPOSITORY/pull/new/$BR"
 
       - if: always()
         run: cat roster.txt >> $GITHUB_STEP_SUMMARY || true

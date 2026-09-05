@@ -16,8 +16,8 @@
   --title: 2.5rem;
   --subtitle: 1.5rem;
 
-  --pad: clamp(1.5rem, 5vw, 5rem);
-  --measure: 40rem;
+  --pad: clamp(1.25rem, 2.5vw, 2.75rem);
+  --measure: 44rem;
 }
 
 * { box-sizing: border-box; }
@@ -41,7 +41,7 @@ code { font-family: var(--font); font-size: 1em; letter-spacing: 0.01em; }
 
 header.top {
   display: flex; align-items: baseline; gap: 2rem; flex-wrap: wrap;
-  padding: 2.5rem var(--pad) 1.25rem;
+  padding: 2rem var(--pad) 1.1rem;
   border-bottom: 1px solid var(--ink);
 }
 header.top .name { font-size: var(--text); font-weight: 700; letter-spacing: 0.02em; }
@@ -54,8 +54,9 @@ header.top .who a { border-bottom: 1px solid var(--line); }
 
 /* ---- layout ------------------------------------------------------------- */
 
-main { padding: 3.5rem var(--pad) 8rem; max-width: 68rem; }
+main { padding: 3.5rem var(--pad) 8rem; max-width: none; }
 .narrow { max-width: var(--measure); }
+main > * { max-width: 100%; }
 
 h1 {
   font-size: var(--title); font-weight: 400; line-height: 1.15;
@@ -104,6 +105,15 @@ a.cite:hover { border-bottom-color: var(--accent); }
 
 .note { color: var(--grey); max-width: var(--measure); margin: 1.5rem 0; }
 
+/* ---- markdown in the Journal -------------------------------------------- */
+
+article.law h3, article.law h4 { font-size: var(--text); font-weight: 700; margin: 2rem 0 0.75rem; }
+ul.md, ol.md { margin: 0 0 1.1em 1.25rem; padding: 0; }
+ul.md li, ol.md li { margin: 0 0 0.35em; }
+blockquote { margin: 1.25rem 0; padding-left: 1.25rem; border-left: 1px solid var(--line); color: var(--grey); }
+strong { font-weight: 700; }
+em { font-style: italic; }
+
 /* ---- lists -------------------------------------------------------------- */
 
 ul.list { list-style: none; margin: 0; padding: 0; max-width: var(--measure); }
@@ -118,11 +128,12 @@ ol.contents li:first-child { border-top: 1px solid var(--ink); }
 ol.contents .n { color: var(--grey); min-width: 2.5rem; }
 ol.contents a:hover { color: var(--accent); }
 
-table { border-collapse: collapse; width: 100%; max-width: var(--measure); }
+table { border-collapse: collapse; width: 100%; }
+.narrow table { max-width: var(--measure); }
+table.wide { max-width: none; }
 th { text-align: left; font-weight: 700; padding: 0.6rem 1.5rem 0.6rem 0; border-bottom: 1px solid var(--ink); }
 td { padding: 0.6rem 1.5rem 0.6rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 td.q { color: var(--grey); }
-table.wide { max-width: none; }
 
 /* ---- forms and controls ------------------------------------------------- */
 

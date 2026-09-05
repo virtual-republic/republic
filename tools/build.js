@@ -34,7 +34,11 @@ const ents = entities(ROOT).map((e) => {
   return { ...e, charterBody: f.slice(end + 4) };
 });
 const offs = offices(ROOT);
-const NAME = C.constitution.meta.republic.name || 'The Republic';
+const NAME = C.constitution.meta.republic.name || C.constitution.meta.republic.name_en || 'The Republic';
+// The register is state and may still carry pre-rename field names.
+const titleOf = (o) => o.title || o.title_en || o.id;
+const nameOf = (e) => e.name || e.name_en || e.id;
+const issueTitle = (j) => j.title || j.title_en || `Issue ${j.number}`;
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const link = (t) => linkify(t, C.entries, { esc, base: BASE });
@@ -74,7 +78,7 @@ const cite = (id, e) => {
   if (parts.length === 2) cite(parts[0], e);
 };
 for (const e of events) cite(e.provision, { kind: 'record', label: e.kind, href: `/ledger/#r${e.seq}`, at: e.at });
-for (const j of C.journal) for (const c of [].concat(j.cites || [])) cite(String(c), { kind: 'journal', label: `Journal ${j.number}`, href: `/journal/#j${j.number}`, at: j.date });
+for (const j of C.journal) for (const c of [].concat(j.cites || [])) cite(String(c), { kind: 'journal', label: `Journal ${j.number}`, href: `/journal/${j.number}/`, at: j.date });
 for (const p of C.proposals) for (const c of [].concat(p.cites || [])) cite(String(c), { kind: 'measure', label: p.id, href: `/assembly/${p.id}/`, at: isoDate(p.opened) });
 
 // ------------------------------------------------------------------ page ---
@@ -123,6 +127,52 @@ const write = (rel, html) => {
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.writeFileSync(f, html);
 };
+
+// Markdown, enough for the Journal: headings, lists, quotes, emphasis, rules.
+// Citations are linked by link() on the way through, so const.art-08/§45/¶1
+// inside an issue resolves like anywhere else.
+function markdown(src) {
+  const out = [];
+  let list = null, para = [];
+
+  const inline = (t) => link(t)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  const flushPara = () => { if (para.length) { out.push(`<p>${inline(para.join(' '))}</p>`); para = []; } };
+  const flushList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+
+  for (const raw of String(src).split('\n')) {
+    const line = raw.trim();
+
+    if (!line) { flushPara(); flushList(); continue; }
+
+    if (/^---+$/.test(line)) { flushPara(); flushList(); out.push('<hr class="rule">'); continue; }
+
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { flushPara(); flushList(); const n = Math.min(h[1].length + 1, 4); out.push(`<h${n}>${inline(h[2])}</h${n}>`); continue; }
+
+    const ul = line.match(/^[-*]\s+(.*)$/);
+    if (ul) { flushPara(); if (list !== 'ul') { flushList(); out.push('<ul class="md">'); list = 'ul'; } out.push(`<li>${inline(ul[1])}</li>`); continue; }
+
+    const ol = line.match(/^\d+[.)]\s+(.*)$/);
+    if (ol) { flushPara(); if (list !== 'ol') { flushList(); out.push('<ol class="md">'); list = 'ol'; } out.push(`<li>${inline(ol[1])}</li>`); continue; }
+
+    const q = line.match(/^>\s?(.*)$/);
+    if (q) { flushPara(); flushList(); out.push(`<blockquote>${inline(q[1])}</blockquote>`); continue; }
+
+    // a numbered paragraph of law keeps its gutter
+    const mk = line.match(/^([¹²³⁴⁵⁶⁷⁸⁹])\s+(.*)$/);
+    if (mk) { flushPara(); flushList(); out.push(para0('¹²³⁴⁵⁶⁷⁸⁹'.indexOf(mk[1]) + 1, mk[2])); continue; }
+
+    flushList();
+    para.push(line);
+  }
+  flushPara(); flushList();
+  return out.join('\n');
+}
+const para0 = (n, t) => `<p class="para"><span class="mark">${n}</span><span class="text">${link(t)}</span></p>`;
 
 // two grid children only: the mark, and one span holding all the text
 const para = (n, text, id, citeId) =>
@@ -199,7 +249,7 @@ write('', page('Republic', `
 
   <h2>Journal</h2>
   <ul class="list">${C.journal.slice(-5).reverse().map((j) =>
-    `<li><a href="${u('/journal/#j' + j.number)}">${esc(j.title || '')}</a><span class="meta">${esc(j.date)}</span></li>`).join('')
+    `<li><a href="${u('/journal/' + j.number + '/')}">${esc(issueTitle(j))}</a><span class="meta">${esc(j.date)}</span></li>`).join('')
     || '<li class="quiet">No issues yet.</li>'}</ul>
 
   <h2>State</h2>
@@ -496,7 +546,7 @@ write('office', page('Office', `
   <h1>Offices<span class="sub">Every office holds an enumerated set of permissions and no others — art-06/§28/¶3.</span></h1>
   <table class="wide"><thead><tr><th>Office</th><th>Holder</th><th>Until</th><th>May</th></tr></thead>
   <tbody>${offs.map((o) => `<tr>
-    <td>${esc(o.title)}</td><td>${esc(o.holder)}</td><td class="q">${esc(isoDate(o.term_ends))}</td>
+    <td>${esc(titleOf(o))}</td><td>${esc(o.holder)}</td><td class="q">${esc(isoDate(o.term_ends))}</td>
     <td class="q">${(o.permissions || []).map((p) => esc((ACTIONS[p] || [p])[0])).join('<br>')}</td></tr>`).join('')}</tbody></table>
 
   <h2>What your key may do</h2>
@@ -506,7 +556,7 @@ write('office', page('Office', `
   <h2>Stand for office</h2>
   <p class="quiet">Every citizen may stand — art-07/§34/¶1. An election is a measure; the vote is by instant runoff — art-08/§46/¶1.</p>
   <label for="office">Office</label>
-  <select id="office">${offs.map((o) => `<option value="${esc(o.id)}">${esc(o.title)}</option>`).join('')}</select>
+  <select id="office">${offs.map((o) => `<option value="${esc(o.id)}">${esc(titleOf(o))}</option>`).join('')}</select>
   <div class="row"><button id="standbtn" disabled>Prepare the election</button><a id="standcommit" class="button" hidden>Open on GitHub</a></div>
   <div class="out" id="standout" hidden></div>`, { on: 'office', script: IDENT + `
   const offices = await getJSON('${u('/data/offices.json')}');
@@ -519,7 +569,7 @@ write('office', page('Office', `
     $('msg').className = 'msg';
     if (!mine.length) { $('msg').textContent = me + ' holds no office.'; $('powers').innerHTML = ''; }
     else {
-      $('msg').textContent = me + ' holds ' + mine.map((o) => o.title).join(', ') + '.';
+      $('msg').textContent = me + ' holds ' + mine.map((o) => o.title || o.title_en || o.id).join(', ') + '.';
       const perms = [...new Set(mine.flatMap((o) => o.permissions || []))];
       $('powers').innerHTML = '<ul class="list">' + perms.map((p) => {
         const a = ACTIONS[p] || [p, '', ''];
@@ -537,11 +587,11 @@ write('office', page('Office', `
       const id = 'P-' + String(existing.length + 1).padStart(4, '0');
       const spec = meta.classes.election;
       const now = new Date(), end = new Date(now.getTime() + spec.window_days * 86400000);
-      const md = ['---', 'id: ' + id, 'title: Election — ' + o.title, 'sponsor: ' + me,
+      const md = ['---', 'id: ' + id, 'title: Election — ' + (o.title || o.title_en || o.id), 'sponsor: ' + me,
         'class: election', 'office: ' + o.id, 'candidates: [' + me + ']',
         'cites:', '  - art-06/§29/¶1', '  - art-07/§34/¶1', '  - art-08/§46/¶1',
         'opened: ' + now.toISOString().slice(0, 10), 'closes: ' + end.toISOString().slice(0, 10),
-        '---', '', '## § 1  The office', '', '¹ The office of ' + o.title + ' is filled under Article 6 § 29 ¹.', '',
+        '---', '', '## § 1  The office', '', '¹ The office of ' + (o.title || o.title_en || o.id) + ' is filled under Article 6 § 29 ¹.', '',
         '² The office is held for one year from the declaration of the result.', '',
         '## § 2  Method', '', '¹ The vote is by the single transferable vote in its instant-runoff form — Article 8 § 46 ¹.', ''].join('\\n');
       $('standout').hidden = false; $('standout').textContent = md;
@@ -554,11 +604,20 @@ write('office', page('Office', `
 
 write('journal', page('Journal', `
   <h1>Journal<span class="sub">Publication is promulgation — art-05/§25/¶2.</span></h1>
-  ${C.journal.slice().reverse().map((j) => `<section class="sec" id="j${j.number}">
-    <h2>No. ${j.number} · ${esc(j.date)}</h2>
-    <h1 style="font-size:var(--subtitle);margin-bottom:1rem">${esc(j.title || '')}</h1>
-    ${j.body.split('\n\n').map((x) => `<p>${link(x.replace(/\n/g, ' '))}</p>`).join('')}
-  </section>`).join('') || '<p class="quiet">No issues yet.</p>'}`, { on: 'journal', narrow: true }));
+  <ul class="list">${C.journal.slice().reverse().map((j) =>
+    `<li><a href="${u(`/journal/${j.number}/`)}">No. ${j.number} · ${esc(issueTitle(j))}</a><span class="meta">${esc(j.date)}</span></li>`).join('')
+    || '<li class="quiet">No issues yet.</li>'}</ul>`, { on: 'journal', narrow: true }));
+
+for (const j of C.journal) {
+  const links = [].concat(j.cites || []);
+  write(`journal/${j.number}`, page(issueTitle(j), `
+    <p class="crumb"><a href="${u('/journal/')}">Journal</a> · No. ${j.number}</p>
+    <h1>${esc(issueTitle(j))}<span class="sub">No. ${j.number} · ${esc(j.date)}${j.measure ? ' · ' + esc(j.measure) : ''}</span></h1>
+    <article class="law">${markdown(j.body)}</article>
+    ${links.length ? `<h2>Made under</h2><ul class="list">${links.map((c) => `<li>${link(String(c))}</li>`).join('')}</ul>` : ''}
+    ${j.measure ? `<h2>The measure</h2><ul class="list"><li><a href="${u(`/assembly/${j.measure}/`)}">${esc(j.measure)}</a></li></ul>` : ''}`,
+  { on: 'journal', narrow: true }));
+}
 
 write('register', page('Register', `
   <h1>Register</h1>
@@ -571,7 +630,7 @@ write('register', page('Register', `
   <h2>Entities</h2>
   ${ents.length ? `<table><thead><tr><th>Entity</th><th>Type</th><th>Name</th></tr></thead>
   <tbody>${ents.map((e) => `<tr><td><a href="${u(`/entities/${e.id}/`)}">${esc(e.id)}</a></td>
-    <td class="q">${esc(e.type)}</td><td>${esc(e.name_en || e.name || '')}</td></tr>`).join('')}</tbody></table>`
+    <td class="q">${esc(e.type)}</td><td>${esc(nameOf(e))}</td></tr>`).join('')}</tbody></table>`
     : '<p class="quiet">None yet. Any citizen may form one — art-04/§19/¶1.</p>'}
 
   <h2>Checkpoints</h2>
@@ -582,9 +641,9 @@ write('register', page('Register', `
 
 for (const e of ents) {
   const secs = e.charterBody ? parseCharter(e.charterBody) : [];
-  write(`entities/${e.id}`, page(e.name_en || e.id, `
+  write(`entities/${e.id}`, page(nameOf(e), `
     <p class="crumb"><a href="${u('/register/')}">Register</a> · ${esc(e.id)}</p>
-    <h1>${esc(e.name_en || e.id)}<span class="sub">${esc(e.type)} · formed ${esc(isoDate(e.formed))} under art-04/§19/¶1</span></h1>
+    <h1>${esc(nameOf(e))}<span class="sub">${esc(e.type)} · formed ${esc(isoDate(e.formed))} under art-04/§19/¶1</span></h1>
     <table><tbody>
       <tr><td class="q">Organs</td><td>${(e.organs || []).map((o) => `${esc(o.name)}: ${(o.held_by || []).join(', ')}`).join('<br>')}</td></tr>
       <tr><td class="q">Members</td><td>${(e.members || []).join(', ')}</td></tr>
@@ -635,7 +694,8 @@ fs.writeFileSync(path.join(OUT, 'data/offices.json'), JSON.stringify(offs, null,
 fs.writeFileSync(path.join(OUT, 'data/entities.json'), JSON.stringify(ents.map(({ charterBody, ...e }) => e), null, 2));
 fs.writeFileSync(path.join(OUT, 'data/proposals.json'), JSON.stringify(C.proposals.map((p) => ({ id: p.id, title: p.title, class: p.class, closes: closesOf(p)?.toISOString() ?? null })), null, 2));
 fs.writeFileSync(path.join(OUT, 'data/meta.json'), JSON.stringify({ repo: REPO, branch: BRANCH, base: BASE, classes: CLASSES, parameters: P }, null, 2));
-fs.copyFileSync(path.join(ROOT, 'ledger/events.jsonl'), path.join(OUT, 'data/events.jsonl'));
+fs.writeFileSync(path.join(OUT, 'data/events.jsonl'),
+  fs.existsSync(path.join(ROOT, 'ledger/events.jsonl')) ? fs.readFileSync(path.join(ROOT, 'ledger/events.jsonl')) : '');
 
 let n = 0;
 (function count(d) { for (const f of fs.readdirSync(d, { withFileTypes: true })) f.isDirectory() ? count(path.join(d, f.name)) : f.name.endsWith('.html') && n++; })(OUT);

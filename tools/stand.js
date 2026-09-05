@@ -48,6 +48,7 @@ if (!target) {
 
 const spec = classSpec(ROOT, 'election');
 const dir = path.join(ROOT, 'proposals');
+fs.mkdirSync(dir, { recursive: true });
 
 // --- joining an election already open --------------------------------------
 

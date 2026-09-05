@@ -56,7 +56,8 @@ if (real.length) {
 let publicKeyLine;
 if (flag('generate')) {
   const kp = generateKeyPair(id);
-  fs.mkdirSync(path.join(ROOT, 'private'), { recursive: true });
+  for (const d of ['private','register/citizens','register/entities','ledger','journal','proposals','ballots','checkpoints','statutes','judgments'])
+  fs.mkdirSync(path.join(ROOT, d), { recursive: true });
   fs.writeFileSync(path.join(ROOT, `private/${id}.pem`), kp.privateKeyPem, { mode: 0o600 });
   fs.writeFileSync(path.join(ROOT, 'private/keeper.pem'), kp.privateKeyPem, { mode: 0o600 });
   publicKeyLine = kp.publicKeyLine;
@@ -105,9 +106,9 @@ for (const f of fs.readdirSync(entitiesDir).filter((f) => f.endsWith('.yml'))) {
 fs.rmSync(path.join(ROOT, 'ledger/events.jsonl'), { force: true });
 fs.rmSync(path.join(ROOT, 'checkpoints'), { recursive: true, force: true });
 fs.mkdirSync(path.join(ROOT, 'checkpoints'), { recursive: true });
-for (const f of fs.readdirSync(path.join(ROOT, 'journal/2026'))) {
-  fs.unlinkSync(path.join(ROOT, 'journal/2026', f));
-}
+const jdir = path.join(ROOT, 'journal/2026');
+fs.mkdirSync(jdir, { recursive: true });
+for (const f of fs.readdirSync(jdir)) fs.unlinkSync(path.join(jdir, f));
 fs.rmSync(path.join(ROOT, 'ballots'), { recursive: true, force: true });
 
 // --- the register ----------------------------------------------------------

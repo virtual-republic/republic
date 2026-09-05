@@ -68,6 +68,8 @@ try {
 
 // --- pick an identifier ----------------------------------------------------
 
+fs.mkdirSync(path.join(ROOT, 'register/citizens'), { recursive: true });
+fs.mkdirSync(path.join(ROOT, 'ledger'), { recursive: true });
 const roll = citizens(ROOT);
 
 if (!id) {

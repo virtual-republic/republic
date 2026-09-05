@@ -36,6 +36,5 @@ jobs:
           git diff --cached --quiet && { echo "nothing to publish"; exit 0; }
           git commit -m "checkpoint (art-02/§10/¶2)"
           git push -u origin "$BR"
-          gh pr create --title "Checkpoint $(date -u +%Y-%m-%d)" \
-            --body "Published under art-02/§10/¶2. Verify with \`npm run verify\`." \
-            --base "${{ github.event.repository.default_branch }}"
+          gh pr create --title "Checkpoint $(date -u +%Y-%m-%d)" --body "Published under art-02/§10/¶2. Verify with \`npm run verify\`." --base "${{ github.event.repository.default_branch }}" \
+            || echo "::warning::Actions cannot open pull requests here. The branch is pushed; open it at https://github.com/$GITHUB_REPOSITORY/pull/new/$BR"
