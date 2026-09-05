@@ -27,7 +27,31 @@ for (const f of ['ledger/events.jsonl', 'register/offices.yml']) {
   const p = path.join(ROOT, f);
   if (!fs.existsSync(p)) continue;
   const src = fs.readFileSync(p, 'utf8');
-  if (/^(<{7}|={7}|>{7})/m.test(src)) note(`${f} contains merge conflict markers`, 'resolve the conflict by hand; nothing here can guess which side you meant');
+  if (!/^(<{7}|={7}|>{7})/m.test(src)) continue;
+  note(`${f} contains merge conflict markers`,
+    f === 'ledger/events.jsonl'
+      ? 'the ledger is append-only, so both sides are real records — --repair keeps both, removes duplicates, and re-chains'
+      : 'resolve this one by hand; nothing here can guess which side you meant');
+}
+
+// The ledger only ever grows. When two branches each append, both sides are
+// genuine records, so the resolution is to keep every line from both and
+// re-chain — never to choose one side over the other.
+function resolveConflict() {
+  const src = fs.readFileSync(LEDGER, 'utf8');
+  const kept = src.split('\n').filter((l) => !/^(<{7}|={7}|>{7})/.test(l));
+  fs.copyFileSync(LEDGER, LEDGER + '.with-conflict');
+  fs.writeFileSync(LEDGER, kept.join('\n'));
+}
+
+function reparse() {
+  const again = fs.readFileSync(LEDGER, 'utf8').split('\n').filter((l) => l.trim());
+  parsed.length = 0;
+  again.forEach((l, i) => {
+    try { parsed.push(JSON.parse(l)); }
+    catch { note(`ledger line ${i + 1} is still not valid JSON`, 'repair it by hand'); }
+  });
+  console.log(`  ${parsed.length} record(s) recovered`);
 }
 
 if (!fs.existsSync(LEDGER)) {
@@ -60,6 +84,24 @@ const collided = [...seqs.entries()].filter(([, n]) => n > 1);
 if (collided.length) note(`${collided.length} sequence number(s) used more than once: ${collided.slice(0, 5).map(([s]) => s).join(', ')}`, 'two branches each appended; --repair re-chains them in time order');
 
 // --- 4. the chain ------------------------------------------------------------
+//
+// Only if every line parses. Reading a ledger with conflict markers in it throws,
+// and a diagnostic that crashes on the fault it is looking for is no diagnostic.
+
+if (problems.length && problems.some((p) => p.what.includes('conflict markers') || p.what.includes('not valid JSON'))) {
+  console.log('\n' + problems.length + ' problem(s):\n');
+  for (const p of problems) console.log(`  \u2717 ${p.what}\n      ${p.fix}`);
+  if (!repair) {
+    console.log('\nA ledger with conflict markers cannot be read at all, so nothing else can be checked.');
+    console.log('To resolve it:  node tools/doctor.js --repair');
+    process.exit(1);
+  }
+  console.log('\nResolving the conflict.\n');
+  resolveConflict();
+  console.log('  markers removed, both sides kept\n');
+  problems.length = 0;
+  reparse();
+}
 
 const chain = verifyChain(ROOT);
 if (!chain.ok) {

@@ -1,0 +1,8 @@
+# The ledger only ever grows. When two branches each append, both sides are
+# genuine records — so keep every line from both rather than writing conflict
+# markers into a file that must parse as JSON. tools/doctor.js --repair then
+# re-chains them in time order.
+ledger/events.jsonl merge=union
+
+# The same reasoning for the other append-only records.
+ballots/**/*.json   merge=union

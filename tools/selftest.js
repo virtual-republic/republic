@@ -384,6 +384,19 @@ check('the law section carries the Constitution and the statute', () => {
   const h = fs.readFileSync(path.join(DIR, 'dist/journal/law/index.html'), 'utf8');
   return h.includes('const.art-01') && h.includes('stat.statute-on-meetings') || 'law index incomplete';
 });
+check('the doctor resolves conflict markers in the ledger', () => {
+  const good = readf('ledger/events.jsonl');
+  const lines = good.trim().split('\n');
+  write('ledger/events.jsonl', [
+    ...lines.slice(0, 3), '<<<<<<< HEAD', ...lines.slice(3, 6), '=======',
+    ...lines.slice(6), '>>>>>>> origin/main',
+  ].join('\n') + '\n');
+  if (node('tools/doctor.js').ok) return 'markers not detected';
+  const r = node('tools/doctor.js', '--repair');
+  if (!r.out.includes('markers removed')) return r.out;
+  node('tools/checkpoint.js');
+  return node('tools/verify.js').out.includes('verifies') || 'did not recover';
+});
 check('the doctor repairs a merge-damaged register', () => {
   const before = readf('ledger/events.jsonl');
   fs.appendFileSync(path.join(DIR, 'ledger/events.jsonl'), before.split('\n').slice(0, 5).join('\n') + '\n');
