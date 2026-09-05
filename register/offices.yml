@@ -18,9 +18,9 @@ offices:
   - id: treasurer
     title_en: Treasurer
     title_fr: Trésorier
-    holder: c-0003
-    since: 2026-08-26
-    term_ends: 2027-08-26
+    holder: c-0006
+    since: 2026-09-05
+    term_ends: 2027-09-05
     established_under: art-06/§28/¶1
     permissions: [value.issue, treasury.disburse]
   - id: auditor
