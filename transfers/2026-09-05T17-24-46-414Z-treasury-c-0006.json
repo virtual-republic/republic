@@ -1,0 +1,10 @@
+{
+  "kind": "transfer",
+  "from": "treasury",
+  "to": "c-0006",
+  "by": "c-0006",
+  "amount": 1000,
+  "at": "2026-09-05T17:24:46.414Z",
+  "salt": "7bbc3c4ac0c6b897ca86f3c6",
+  "signature": "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg4o0GP+Fw7KOAuZ0tJEUc/YJx40\nZEWwPRyGQPv4Udm4MAAAAIcmVwdWJsaWMAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVk\nMjU1MTkAAABAwlxWYeBxGcJ1GKYZeQgV0NinBqberavgavfSXcD7x8/3bwmIzNmSepLk1o\nTPABT2ezHgLNYzN2LSnxZiNjaRCw==\n-----END SSH SIGNATURE-----\n"
+}
