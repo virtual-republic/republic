@@ -616,6 +616,16 @@ write('office', page('Office', `
   <p id="msg" class="msg quiet">No key loaded. See <a href="${u('/key/')}">Your key</a>.</p>
   <div id="powers"></div>
 
+  <h2>Carried elections</h2>
+  <p id="pend" class="quiet">—</p>
+  <div id="pendbox" hidden>
+    <p class="quiet">An election that carried but was never given effect leaves the register saying one thing and the Journal another — art-06/§29/¶1.</p>
+    <table><thead><tr><th>Measure</th><th>Office</th><th>Elected</th></tr></thead><tbody id="pendrows"></tbody></table>
+    <pre class="cmd">node tools/office.js install --all
+git add register/offices.yml ledger/events.jsonl
+git commit -m "give effect to the election" &amp;&amp; git push</pre>
+  </div>
+
   <h2>Stand for office</h2>
   <p class="quiet">Every citizen may stand — art-07/§34/¶1. An election is a measure; the vote is by instant runoff — art-08/§46/¶1.</p>
   <label for="office">Office</label>
@@ -624,16 +634,41 @@ write('office', page('Office', `
   <div class="out" id="standout" hidden></div>`, { on: 'office', script: IDENT + `
   const offices = await getJSON('${u('/data/offices.json')}');
   const existing = await getJSON('${u('/data/proposals.json')}');
+  const elections = await getJSON('${u('/data/elections.json')}');
   const ACTIONS = ${JSON.stringify(ACTIONS)};
+
+  // Which carried elections the register has not caught up with.
+  const behind = elections.filter((e) => {
+    if (!e.carried || !e.winner) return false;
+    const o = offices.find((x) => x.id === e.office);
+    return o && o.holder !== e.winner;
+  });
+  if (behind.length) {
+    $('pendbox').hidden = false;
+    $('pend').textContent = behind.length + ' carried election' + (behind.length === 1 ? '' : 's') + ' not yet given effect.';
+    $('pendrows').innerHTML = behind.map((e) =>
+      '<tr><td><a href="${u('/assembly/')}' + e.id + '/">' + e.id + '</a></td><td>' + e.office + '</td><td>' + e.winner + '</td></tr>').join('');
+  } else {
+    $('pend').textContent = 'Every carried election has taken effect.';
+  }
 
   function render() {
     if (!me) { $('powers').innerHTML = ''; return; }
     const mine = offices.filter((o) => o.holder === me);
     $('msg').className = 'msg';
     if (!mine.length) {
-      $('msg').textContent = me + ' holds no office. The register records: ' +
-        offices.map((o) => (o.title || o.id) + ' — ' + o.holder).join('; ') + '.';
-      $('powers').innerHTML = '';
+      const roll = await getJSON('${u('/data/citizens.json')}');
+      const live = new Set(roll.filter((c) => c.status === 'active').map((c) => c.id));
+      const empty = offices.filter((o) => !live.has(o.holder));
+      $('msg').textContent = me + ' holds no office.';
+      $('powers').innerHTML = '<ul class="list">' + offices.map((o) =>
+        '<li>' + (o.title || o.id) + '<span class="meta">' + o.holder +
+        (live.has(o.holder) ? '' : ' — not an active citizenship') + '</span></li>').join('') + '</ul>' +
+        (empty.length ? '<p class="note">' + empty.length + ' office' + (empty.length === 1 ? ' is' : 's are') +
+          ' recorded to a citizenship that is not active, so ' + (empty.length === 1 ? 'it is' : 'they are') +
+          ' vacant in fact — art-06/§29/¶4. The Assembly appoints until an election is held:</p>' +
+          '<pre class="cmd">node tools/office.js vacant --fill ' + me + '\ngit add register/offices.yml ledger/events.jsonl\ngit commit -m "appoint to the vacant offices" &amp;&amp; git push</pre>'
+        : '');
     }
     else {
       $('msg').textContent = me + ' holds ' + mine.map((o) => o.title || o.title_en || o.id).join(', ') + '.';
@@ -774,6 +809,16 @@ write('treasury', page('Value', `
     <td><a href="${u(`/entities/${m.issuer}/`)}">${esc(m.issuer)}</a></td><td class="q">${m.issued}</td></tr>`).join('')}</tbody></table>`
   : '<p class="quiet">None issued. A company may issue a share in itself — art-09/§51/¶1.</p>'}
 
+  <h2 id="issuehead" hidden>Issue</h2>
+  <div id="issuebox" hidden>
+    <p class="quiet">Only the Treasurer may issue, only under a resolution of the Assembly, and only in the amount it states — art-09/§49/¶1.</p>
+    <label for="ires">Resolution that authorises it</label><select id="ires"></select>
+    <label for="iamt">Amount</label><input type="text" id="iamt" inputmode="numeric">
+    <label for="ito2">To</label><select id="ito2"></select>
+    <div class="row"><button id="isign">Sign the issue</button><a id="icommit" class="button" hidden>Open on GitHub</a></div>
+    <div class="out" id="iout" hidden></div>
+  </div>
+
   <h2>Transfer</h2>
   <p id="msg" class="msg quiet"></p>
   <label for="tfrom">From</label><select id="tfrom"></select>
@@ -797,7 +842,40 @@ write('treasury', page('Value', `
       '<tr><td>' + a.id + '</td><td class="q">' + a.kind + '</td><td>' + (a.balance || 0) + '</td><td class="q">' +
       ((a.holdings || []).map((h) => h.quantity + ' × ' + h.instrument).join('<br>') || '—') + '</td></tr>').join('');
   }
+  // art-09/§49/¶1 — the issue form belongs to whoever holds value.issue.
+  const offs2 = await getJSON('${u('/data/offices.json')}');
+  const carried = await getJSON('${u('/data/carried.json')}');
+  function issueBox() {
+    const may = offs2.some((o) => o.holder === me && (o.permissions || []).includes('value.issue'));
+    $('issuehead').hidden = !may; $('issuebox').hidden = !may;
+    if (!may) return;
+    $('ires').innerHTML = carried.length
+      ? carried.map((m) => '<option value="' + m.id + '">' + m.id + ' — ' + m.title + '</option>').join('')
+      : '<option value="">no measure has carried</option>';
+    $('ito2').innerHTML = accts.map((a) => '<option' + (a.id === 'treasury' ? ' selected' : '') + '>' + a.id + '</option>').join('');
+  }
+  if ($('isign')) $('isign').onclick = async () => {
+    try {
+      if (!me) throw new Error('load a key that is on the register');
+      const amount = Number($('iamt').value);
+      if (!amount || amount <= 0) throw new Error('give an amount');
+      const resolution = $('ires').value;
+      if (!resolution) throw new Error('an issue must cite the resolution that authorises it — art-09/§49/¶1');
+      const body = { kind: 'value-issue', amount, to: $('ito2').value, resolution, by: me,
+        at: new Date().toISOString(),
+        salt: [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('') };
+      body.signature = await R.sign(R.canonical(body), priv, { namespace: 'republic' });
+      $('iout').hidden = false; $('iout').textContent = JSON.stringify(body, null, 2);
+      const name = body.at.replace(/[:.]/g, '-') + '-issue';
+      $('icommit').href = R.commitUrl(meta.repo, meta.branch, 'transfers/' + name + '.json', JSON.stringify(body, null, 2), 'issue ' + amount + ' under ' + resolution);
+      $('icommit').hidden = false;
+      $('msg').className = 'msg'; $('msg').textContent = 'Signed. Commit it; the settle workflow records the issue.';
+    } catch (e) { problem('could not sign', e); }
+  };
+  document.addEventListener('identity', issueBox);
+
   function fill() {
+    issueBox();
     showMine();
     $('tfrom').innerHTML = mine().map((a) => '<option>' + a.id + '</option>').join('') || '<option value="">no account</option>';
     $('tto').innerHTML = accts.map((a) => '<option>' + a.id + '</option>').join('');
@@ -1346,6 +1424,13 @@ fs.mkdirSync(path.join(OUT, 'data'), { recursive: true });
 fs.writeFileSync(path.join(OUT, 'data/resolve.json'), JSON.stringify(resolveIndex));
 fs.writeFileSync(path.join(OUT, 'data/citizens.json'), JSON.stringify(roll.map((c) => ({ id: c.id, status: c.status, admitted: isoDate(c.admitted), keys: c.keys || [] })), null, 2));
 fs.writeFileSync(path.join(OUT, 'data/offices.json'), JSON.stringify(offs, null, 2));
+fs.writeFileSync(path.join(OUT, 'data/carried.json'), JSON.stringify(
+  C.proposals.filter((p) => resultFor(p.id)?.outcome?.carried).map((p) => ({ id: p.id, title: p.title, class: p.class })), null, 2));
+fs.writeFileSync(path.join(OUT, 'data/elections.json'), JSON.stringify(
+  C.proposals.filter((p) => p.class === 'election').map((p) => {
+    const r = resultFor(p.id);
+    return { id: p.id, office: p.office, winner: r?.outcome?.winner ?? null, carried: !!r?.outcome?.carried };
+  }), null, 2));
 const treasurer = offs.find((o) => (o.permissions || []).includes('treasury.disburse'));
 fs.writeFileSync(path.join(OUT, 'data/accounts.json'), JSON.stringify([...ACCTS.entries()].map(([id, m]) => ({
   id, kind: m.kind, organs: m.organs || [], ...(id === TREASURY && treasurer ? { officer: treasurer.holder } : {}),
