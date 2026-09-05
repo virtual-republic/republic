@@ -1,0 +1,12 @@
+id: e-0003
+type: company
+name: Company of the Republic
+formed: 2026-09-05
+formed_by: c-0006
+formed_under: art-04/§19/¶1
+charter: charters/e-0003.md
+organs:
+  - name: convenor
+    held_by: [c-0006]
+members: [c-0006]
+status: active
