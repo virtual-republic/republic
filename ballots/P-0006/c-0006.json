@@ -1,0 +1,9 @@
+{
+  "proposal": "P-0006",
+  "choice": [
+    "c-0006"
+  ],
+  "at": "2026-09-05T02:15:32.808Z",
+  "salt": "4afc17d4ae9fa10f0324f0c48422f5cd",
+  "signature": "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg4o0GP+Fw7KOAuZ0tJEUc/YJx40\nZEWwPRyGQPv4Udm4MAAAAIcmVwdWJsaWMAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVk\nMjU1MTkAAABAwYcoRtwuuUSrF7sdr4u1UY9cpjXxWtf2biz9xHjf9J5yygGSOiXLbciNDA\n2v1Ou/kg7KB3oo6sq57uABq2nECA==\n-----END SSH SIGNATURE-----\n"
+}
