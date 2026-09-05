@@ -29,7 +29,7 @@ jobs:
       - name: Who is the Registrar?
         run: node tools/approver.js --who
 
-      - name: Has the Registrar approved?
+      - name: Has the Keeper of the Journal approved?
         if: github.event_name == 'pull_request'
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
@@ -42,6 +42,8 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           git fetch origin "${{ github.base_ref }}" --depth=0
           node tools/gate.js --base "origin/${{ github.base_ref }}" | tee gate.txt

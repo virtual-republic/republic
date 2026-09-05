@@ -39,3 +39,4 @@ offices:
     term_ends: 2027-09-04
     established_under: art-06/§28/¶1
     permissions: [court.halt, court.void, court.judge]
+

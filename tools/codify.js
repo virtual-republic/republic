@@ -53,7 +53,7 @@ for (const j of issues) {
   const out = path.join(STATUTES, `${slug}.md`);
   if (fs.existsSync(out)) { skipped++; continue; }
 
-  console.log(`  + stat.${slug}  ← ${j.measure}, Journal ${j.number}`);
+  console.log(`  + stat.${slug}  \u2190 ${j.measure}, Journal ${j.number}`);
   made++;
   if (dry) continue;
 

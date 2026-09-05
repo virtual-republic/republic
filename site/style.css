@@ -191,3 +191,5 @@ button.plain:hover { background: transparent; color: var(--accent); }
   main { padding-top: 2.5rem; }
   p.para { grid-template-columns: 1.5rem minmax(0, 1fr); }
 }
+
+

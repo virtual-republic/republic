@@ -36,3 +36,4 @@ title: Entities
 ¹ An entity is dissolved by its charter's procedure, by resolution of its members, or by judgment of the Court.
 
 ² On dissolution its holdings pass as its charter provides, and failing that, to the Treasury.
+

@@ -265,3 +265,7 @@ function instantRunoff(ballots, weights, candidates) {
   }
   return { rounds, winner: [...active][0] ?? null };
 }
+
+
+
+

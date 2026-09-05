@@ -25,45 +25,56 @@ const arg = (n, d) => { const i = args.indexOf(`--${n}`); return i === -1 ? d : 
 // Anything not listed is exempt: the Republic should not need a referendum to
 // fix a typo in its stylesheet.
 const RULES = [
-  // Records, not decisions. These ARE the outputs of procedure, so requiring a
-  // vote to write them would deadlock the Republic.
-  { pattern: /^ballots\//,                 class: null, why: 'ballots are how voting happens' },
-  { pattern: /^proposals\//,               class: null, why: 'proposing is not enacting (art-08/§41)' },
-  { pattern: /^ledger\//,                  class: null, why: 'records (art-05/§24)' },
-  { pattern: /^checkpoints\//,             class: null, why: 'checkpoints (art-02/§10/¶2)' },
-  { pattern: /^journal\//,                 class: null, why: 'publication (art-05/§25)' },
-  { pattern: /^register\/citizens\//,      class: null, why: 'admission takes effect on recording (art-03/§16/¶3)' },
-  { pattern: /^register\/entities\//,      class: null, why: 'entities are formed as of right (art-04/§19/¶1)' },
-  { pattern: /^transfers\//,               class: null, why: 'a signed transfer, settled by the workflow (art-09/§50/¶2)' },
-  { pattern: /^orders\//,                  class: null, why: 'an order on the exchange (art-09/§52/¶3)' },
-  { pattern: /^settled\//,                 class: null, why: 'settled instruments' },
-  { pattern: /^contracts\//,               class: null, why: 'a contract between parties, not an act of the Assembly' },
-  { pattern: /^charters\//,                class: null, why: 'an entity charter (art-04/§21/¶1)' },
-  { pattern: /^(site|dist)\//,             class: null, why: 'presentation, not law' },
-  { pattern: /^(README|SETUP)/,            class: null, why: 'documentation' },
+  // --- Records and instruments: exempt ------------------------------------
+  // These ARE the outputs of procedure. Requiring a vote to record a vote
+  // would deadlock the Republic on its first measure.
+  { pattern: /^ballots\//,                          class: null, why: 'ballots are how voting happens' },
+  { pattern: /^proposals\//,                        class: null, why: 'proposing is not enacting (art-08/§41)' },
+  { pattern: /^ledger\//,                           class: null, why: 'records (art-05/§24)' },
+  { pattern: /^checkpoints\//,                      class: null, why: 'checkpoints (art-02/§10/¶2)' },
+  { pattern: /^journal\/issues\//,                  class: null, why: 'publication is promulgation (art-05/§25/¶2)' },
+  { pattern: /^journal\/judgments\//,               class: null, why: 'the Court decides; the Assembly does not vote on judgments (art-06/§31)' },
+  { pattern: /^register\/citizens\//,               class: null, why: 'admission takes effect on recording (art-03/§16/¶3)' },
+  { pattern: /^transfers\//,                        class: null, why: 'a signed transfer, settled by the workflow (art-09/§50/¶2)' },
+  { pattern: /^orders\//,                           class: null, why: 'an order on the exchange (art-09/§52/¶3)' },
+  { pattern: /^settled\//,                          class: null, why: 'settled instruments' },
+  { pattern: /^contracts\//,                        class: null, why: 'a contract between parties, not an act of the Assembly' },
+  { pattern: /^charters\//,                         class: null, why: 'an entity charter is the entity\u2019s own instrument (art-04/§21/¶1)' },
+  { pattern: /^(README|SETUP|samples)/,             class: null, why: 'documentation' },
 
-  // Tunable values. A parameter change is a real change with no code change,
-  // which is exactly why it is governed and exactly why it is cheap.
-  { pattern: /^parameters\.yml$/,          class: 'organic', why: 'a tunable value; the tools read it (art-01/§4/¶3)' },
+  // --- Entities: as of right, or by law -----------------------------------
+  // art-04/§19/¶1 gives every citizen the right to form an association, a
+  // company, or a foundation. A commune or an organ of the Republic exists
+  // only because the Assembly said so, so entering one is an ordinary act
+  // that must cite the measure — parameters.yml decides which is which, and
+  // tools/entity.js enforces it at the point of formation.
+  { pattern: /^register\/entities\//,               class: null, why: 'formation as of right, or by measure, as tools/entity.js enforces (art-04/§19, §20/¶3)' },
 
-  // Prose policy that no tool executes.
-  { pattern: /^statutes\//,                class: 'policy', why: 'statute (art-01/§4/¶3)' },
+  // --- The Constitution ----------------------------------------------------
+  // Both layouts, so a repository mid-migration is never ungated.
+  { pattern: /^(journal\/)?constitution\/(en|fr)?\/?(02|07|11)-/, class: 'entrenched', why: 'entrenched Article (art-11/§61)' },
+  { pattern: /^(journal\/)?constitution\//,         class: 'amendment', why: 'amends the Constitution (art-11/§60)' },
 
-  // Entrenched Articles.
-  { pattern: /^constitution\/(en|fr)\/(02|07|11)-/, class: 'entrenched', why: 'entrenched Article (art-11/§61)' },
+  // --- Statute -------------------------------------------------------------
+  { pattern: /^(journal\/)?statutes\//,             class: 'policy', why: 'statute (art-01/§4/¶3)' },
 
-  // The rest of the Constitution.
-  { pattern: /^constitution\//,            class: 'amendment', why: 'amends the Constitution (art-11/§60)' },
+  // --- Code ----------------------------------------------------------------
+  // The tools ARE the procedure: whoever can edit the tally can redefine what
+  // "carried" means. site/republic.js signs ballots, so it sits here too.
+  { pattern: /^tools\//,                            class: 'organic', why: 'the published tools (art-05/§26/¶1)' },
+  { pattern: /^site\/republic\.js$/,                class: 'organic', why: 'the browser signs ballots with this (art-08/§43/¶2)' },
+  { pattern: /^site\//,                             class: null, why: 'presentation, not law' },
+  { pattern: /^\.github\/workflows\//,              class: 'organic', why: 'procedure executing (art-08/§41)' },
+  { pattern: /^\.github\/(ruleset|CODEOWNERS)/,     class: 'organic', why: 'merge discipline' },
+  { pattern: /^parameters\.yml$/,                   class: 'organic', why: 'a tunable value; the tools read it (art-01/§4/¶3)' },
+  { pattern: /^package\.json$/,                     class: 'organic', why: 'what the tools run as' },
 
-  // The tools are the law in executable form; changing them changes what the
-  // Constitution does. Same tier as organic statute.
-  { pattern: /^tools\//,                   class: 'organic', why: 'the published tools (art-05/§26/¶1)' },
-  { pattern: /^\.github\/workflows\//,     class: 'organic', why: 'procedure executing (art-08/§41)' },
-  { pattern: /^\.github\/ruleset/,         class: 'organic', why: 'merge discipline' },
+  // --- Offices -------------------------------------------------------------
+  { pattern: /^register\/offices\.yml$/,            class: 'ordinary', why: 'offices and permissions (art-06/§28/¶3)' },
+  { pattern: /^register\/keepers\.txt$/,            class: 'ordinary', why: 'the Keeper\u2019s signing key' },
 
-  // Offices and their permissions.
-  { pattern: /^register\/offices\.yml$/,   class: 'ordinary', why: 'offices and permissions (art-06/§28/¶3)' },
-  { pattern: /^register\/keepers\.txt$/,   class: 'ordinary', why: 'the Keeper’s signing key' },
+  // Anything else under journal/ is published record.
+  { pattern: /^journal\//,                          class: null, why: 'published record (art-05/§25)' },
 ];
 
 const ORDER = ['policy', 'ordinary', 'organic', 'amendment', 'entrenched'];
@@ -107,7 +118,7 @@ if (!required) {
 
 const spec = classSpec(ROOT, required);
 
-console.log(`This change requires a measure of class "${required}" (${spec.label_en}):\n`);
+console.log(`This change requires a measure of class "${required}" (${spec.label}):\n`);
 for (const g of governed) console.log(`  ${g.file}\n      ${g.why}`);
 console.log('');
 
@@ -170,6 +181,35 @@ console.log('-------------\n');
 
 if (!carried) {
   fail([`${measure} has not carried. art-08/§45/¶1 — a measure that carries is enacted; this one has not.`]);
+}
+
+// art-08/§45/¶1 — what is enacted is what carried. A measure may name the
+// change it authorises, and then only that change may be merged under it. A
+// measure that names nothing authorises anything of its class, which is looser
+// and is why naming it is the better practice.
+const authorises = [].concat(
+  (fs.readFileSync(path.join(ROOT, 'proposals', proposalFile), 'utf8').match(/^authorises:\s*(.+)$/m) || [])[1] || []
+).join('').trim();
+
+if (authorises) {
+  const pr = process.env.PR_NUMBER || (process.env.GITHUB_REF || '').match(/refs\/pull\/(\d+)/)?.[1] || '';
+  const sha = process.env.PR_HEAD_SHA || process.env.GITHUB_SHA || '';
+  // YAML may hand us "#12" quoted, since # starts a comment unquoted.
+  const named = authorises.replace(/["']/g, '').split(/[,\s]+/).filter(Boolean);
+  const matched = named.some((n) => {
+    const bare = n.replace(/^#/, '').trim();
+    return (pr && bare === pr) || (sha && sha.startsWith(bare)) || (bare.length >= 7 && sha.includes(bare));
+  });
+  console.log(`\n${measure} authorises: ${named.join(', ')}`);
+  console.log(`This change is: pull request ${pr || '(none)'}${sha ? ', commit ' + sha.slice(0, 10) : ''}`);
+  if (!matched) {
+    fail([
+      `${measure} authorises ${named.join(', ')}, which is not this change.`,
+      `A measure enacts what it named and nothing else (art-08/§45/¶1).`,
+      `Either open the change the measure named, or carry a measure naming this one.`,
+    ]);
+  }
+  console.log(`✓ this is the change ${measure} authorised.`);
 }
 
 // art-11/§60/¶3 — amendments must be carried twice, thirty days apart.

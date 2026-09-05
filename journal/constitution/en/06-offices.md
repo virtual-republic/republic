@@ -48,3 +48,4 @@ title: Offices
 ² The Auditor SHALL report to the Assembly at least twice a year, and the report is published.
 
 ³ The permissions attaching to each office SHALL be re-approved by the Assembly annually, and lapse if they are not.
+

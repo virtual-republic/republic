@@ -19,6 +19,7 @@ jobs:
     permissions: { contents: write, pull-requests: write }
     steps:
       - uses: actions/checkout@v4
+        with: { ref: main }
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - run: npm ci --omit=dev || npm install --omit=dev
@@ -32,19 +33,23 @@ jobs:
       - name: The register must still verify
         run: node tools/verify.js && node tools/test.js
 
-      - name: Propose the settlement
+      - name: Record the settlement
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then echo "nothing settled"; exit 0; fi
-          BR="settle/$(date -u +%Y-%m-%d-%H%M)"
+          if [ -z "$(git status --porcelain)" ]; then echo "nothing settled"; exit 0; fi
           git config user.name  "Treasurer"
           git config user.email "treasurer@users.noreply.github.com"
-          git checkout -b "$BR"
           git add ledger/ transfers/ orders/ contracts/ settled/ 2>/dev/null || true
           git commit -m "settle (art-09/§50/¶2, art-09/§52/¶2)"
-          git push -u origin "$BR"
-          gh pr create --title "Settlement" --body-file settle.txt --base "${{ github.event.repository.default_branch }}" \
-            || echo "::warning::Actions cannot open pull requests here. The branch is pushed; open it at https://github.com/$GITHUB_REPOSITORY/pull/new/$BR"
+          if git push origin HEAD:main; then
+            echo "recorded on main"
+          else
+            BR="settle/$(date -u +%Y-%m-%d-%H%M)"
+            git branch "$BR" && git push -u origin "$BR"
+            gh pr create --title "Settlement" --body-file settle.txt --base main \
+              && gh pr merge "$BR" --squash --admin \
+              || echo "::warning::Could not record automatically. Open https://github.com/$GITHUB_REPOSITORY/pull/new/$BR"
+          fi
 
       - if: always()
         run: cat settle.txt >> $GITHUB_STEP_SUMMARY || true

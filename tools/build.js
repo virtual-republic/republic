@@ -422,6 +422,8 @@ write('assembly', page('Assembly', `
   <label for="ptitle">Title</label><input type="text" id="ptitle">
   <label for="pclass">Class</label><select id="pclass"></select>
   <label for="pcites">Provisions it is made under, one per line</label><textarea id="pcites" rows="3"></textarea>
+  <label for="pauth">Pull request or commit it authorises, if it changes the code or the law (optional)</label><input type="text" id="pauth" placeholder="#12">
+  <label for="pstat">Statute it replaces, by slug, if it amends one (optional)</label><input type="text" id="pstat" placeholder="statute-on-meetings">
   <label for="pbody">Text</label><textarea id="pbody" rows="8"></textarea>
   <div class="row"><button id="check">Check</button><a id="commit" class="button" hidden>Open on GitHub</a></div>
   <div class="out" id="preview" hidden></div>`, { on: 'assembly', narrow: true, script: IDENT + `
@@ -439,7 +441,10 @@ write('assembly', page('Assembly', `
       const spec = meta.classes[$('pclass').value];
       const now = new Date(), end = new Date(now.getTime() + spec.window_days * 86400000);
       const md = ['---', 'id: ' + id, 'title: ' + $('ptitle').value.trim(),
-        'sponsor: ' + (me || 'c-0001'), 'class: ' + $('pclass').value, 'cites:',
+        'sponsor: ' + (me || 'c-0001'), 'class: ' + $('pclass').value,
+        ...($('pauth').value.trim() ? ['authorises: ' + $('pauth').value.trim()] : []),
+        ...($('pstat').value.trim() ? ['amends_statute: ' + $('pstat').value.trim()] : []),
+        'cites:',
         ...cites.map((c) => '  - ' + c),
         'opened: ' + now.toISOString().slice(0, 10), 'closes: ' + end.toISOString().slice(0, 10),
         '---', '', '## § 1', '', '¹ ' + $('pbody').value.trim(), ''].join('\\n');
@@ -624,7 +629,11 @@ write('office', page('Office', `
     if (!me) { $('powers').innerHTML = ''; return; }
     const mine = offices.filter((o) => o.holder === me);
     $('msg').className = 'msg';
-    if (!mine.length) { $('msg').textContent = me + ' holds no office.'; $('powers').innerHTML = ''; }
+    if (!mine.length) {
+      $('msg').textContent = me + ' holds no office. The register records: ' +
+        offices.map((o) => (o.title || o.id) + ' — ' + o.holder).join('; ') + '.';
+      $('powers').innerHTML = '';
+    }
     else {
       $('msg').textContent = me + ' holds ' + mine.map((o) => o.title || o.title_en || o.id).join(', ') + '.';
       const perms = [...new Set(mine.flatMap((o) => o.permissions || []))];
@@ -1004,8 +1013,18 @@ for (const j of C.journal) {
     <p class="crumb"><a href="${u('/journal/issues/')}">Journal</a> · No. ${j.number}</p>
     <h1>${esc(issueTitle(j))}<span class="sub">No. ${j.number} · ${esc(j.date)}${j.measure ? ' · ' + esc(j.measure) : ''}</span></h1>
     <article class="law">${markdown(j.body)}</article>
+    ${(() => {
+      if (!j.statute) return '';
+      const st = C.statutes.find((x) => x.slug === j.statute);
+      if (!st) return `<p class="note">The text in force is stat.${esc(j.statute)}, which is not in the corpus.</p>`;
+      const m = st.versions.en || Object.values(st.versions)[0] || {};
+      return `<h2>The text in force</h2>
+        <p class="quiet">stat.${esc(j.statute)}${m.version ? ', version ' + m.version : ''} — the text as it now stands, kept once and shown here.
+        <a href="${u(`/journal/law/${j.statute}/`)}">Open the statute</a>.</p>
+        <article class="law">${statuteSections(m.sections || [], j.statute)}</article>`;
+    })()}
     ${links.length ? `<h2>Made under</h2><ul class="list">${links.map((c) => `<li>${link(String(c))}</li>`).join('')}</ul>` : ''}
-    ${j.measure ? `<h2>The measure</h2><ul class="list"><li><a href="${u(`/assembly/${j.measure}/`)}">${esc(j.measure)}</a></li></ul>` : ''}`,
+    ${j.measure ? `<h2>The measure</h2><ul class="list"><li><a href="${u(`/assembly/${j.measure}/`)}">${esc(j.measure)}</a>${j.elected ? ` <span class="meta">elected ${esc(j.elected)}</span>` : ''}</li></ul>` : ''}`,
   { on: 'journal/issues', narrow: true }));
 }
 

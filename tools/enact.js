@@ -142,30 +142,31 @@ ${body}
     });
     console.log(existed
       ? `  statutes/${slug}.md amended to version ${version}; version ${version - 1} preserved`
-      : `  statute written to statutes/${slug}.md — citable as stat.${slug}/§1/¶1`);
+      : `  statute written to ${path.relative(ROOT, statute)} — citable as stat.${slug}/§1/¶1`);
   }
 }
 
+// art-05/§25/¶2 — publication is promulgation. The issue records the act: what
+// carried, by what vote, and where the text now lives. It never reproduces the
+// text, because two copies of a law are one copy too many.
 const issue = `---
 number: ${number}
 date: ${today}
 measure: ${id}
+class: ${front.class}
 title: ${front.title || id}
-cites: [art-08/§45/¶1${cites.length ? ', ' + cites.join(', ') : ''}]
+${statuteSlug ? `statute: ${statuteSlug}\n` : ''}${front.class === 'election' && result.outcome.winner ? `office: ${front.office || ''}\nelected: ${result.outcome.winner}\n` : ''}cites: [art-08/§45/¶1]
 ---
 
 ${front.class === 'election'
-  ? `${result.outcome.winner} was elected ${front.office || 'to office'} by the Assembly, and takes the office on publication of this issue under Article 6 § 29 ¹.`
-  : `${front.title || id} was carried by the Assembly and is enacted by publication in this issue, under Article 8 § 45 ¹.`}
+  ? `${result.outcome.winner} was elected ${front.office || 'to office'} and takes the office on publication of this issue — Article 6 § 29 ¹.`
+  : `${front.title || id} was carried by the Assembly and is enacted by publication in this issue — Article 8 § 45 ¹.`}
 
-The measure was of class ${front.class}. Of ${result.outcome.cast} ballots cast
-against an electorate of ${result.outcome.electorate}, ${result.outcome.yes} were
-in favour and ${result.outcome.no} against, ${(result.outcome.share * 100).toFixed(1)}%
-of decisive votes against a threshold of ${(result.outcome.threshold * 100).toFixed(2)}%.
+Of ${result.outcome.cast} ballot${result.outcome.cast === 1 ? '' : 's'} cast against an electorate of ${result.outcome.electorate}, ${result.outcome.yes ?? result.outcome.cast} were in favour and ${result.outcome.no ?? 0} against${result.outcome.share != null ? `, ${(result.outcome.share * 100).toFixed(1)}% of decisive votes against a threshold of ${(result.outcome.threshold * 100).toFixed(2)}%` : ''}.
 
 ${statuteSlug
-  ? `The text in force is stat.${statuteSlug}, as amended by every measure since.`
-  : `The text as enacted:\n\n${body}`}
+  ? `The text in force is stat.${statuteSlug}. It is amended only by a further measure, and every version is recorded there.`
+  : `The measure is ${id}. It enacts no standing law.`}
 `;
 
 fs.mkdirSync(path.join(journalDir, year), { recursive: true });
