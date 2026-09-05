@@ -64,8 +64,14 @@ const isOpen = (p) => { const c = closesOf(p); return c ? new Date() < c : true;
 // recorded. art-08/§43/¶5 lets a measure close early, so the date alone lies.
 function statusOf(p) {
   const r = resultFor(p.id);
-  if (r && r.open === false) return { open: false, label: r.outcome?.carried ? 'carried' : 'not carried', carried: !!r.outcome?.carried };
-  if (r && r.outcome && r.outcome.open === false) return { open: false, label: r.outcome.carried ? 'carried' : 'not carried', carried: !!r.outcome.carried };
+  if (r && r.open === false && r.outcome) {
+    if (r.outcome.winner) return { open: false, label: r.outcome.carried ? `elected ${r.outcome.winner}` : 'no result', carried: !!r.outcome.carried, winner: r.outcome.winner };
+    return { open: false, label: r.outcome.carried ? 'carried' : 'not carried', carried: !!r.outcome.carried };
+  }
+  if (r && r.outcome && r.outcome.open === false) {
+    if (r.outcome.winner) return { open: false, label: r.outcome.carried ? `elected ${r.outcome.winner}` : 'no result', carried: !!r.outcome.carried, winner: r.outcome.winner };
+    return { open: false, label: r.outcome.carried ? 'carried' : 'not carried', carried: !!r.outcome.carried };
+  }
   if (!isOpen(p)) return { open: false, label: 'closed, not yet counted', carried: false };
   return { open: true, label: 'open', carried: false };
 }
@@ -646,12 +652,13 @@ write('law', page('Law', `
     <button class="plain" data-sort="class">class</button>
     <button class="plain" data-sort="id">identifier</button>
   </div>
-  <table id="laws"><thead><tr><th>Statute</th><th>Class</th><th>Enacted</th><th>Cite as</th></tr></thead>
+  <table id="laws"><thead><tr><th>Statute</th><th>Class</th><th>Version</th><th>In force since</th><th>Cite as</th></tr></thead>
   <tbody>${C.statutes.map((st) => {
     const m = statuteMeta(st);
     return `<tr data-title="${esc(m.title || st.slug)}" data-enacted="${esc(isoDate(m.enacted))}" data-class="${esc(m.class || '')}" data-id="${esc(st.slug)}">
       <td><a href="${u(`/law/${st.slug}/`)}">${esc(m.title || st.slug)}</a></td>
       <td class="q">${esc(CLASSES[m.class]?.label || m.class || '')}</td>
+      <td class="q">${m.version || 1}</td>
       <td class="q">${esc(isoDate(m.enacted))}</td>
       <td class="q">stat.${esc(st.slug)}</td></tr>`;
   }).join('')}</tbody></table>`
@@ -674,7 +681,7 @@ for (const st of C.statutes) {
   const back2 = back.get(`stat.${st.slug}`) || [];
   write(`law/${st.slug}`, page(m.title || st.slug, `
     <p class="crumb"><a href="${u('/law/')}">Law</a> · stat.${esc(st.slug)}</p>
-    <h1>${esc(m.title || st.slug)}<span class="sub">${esc(CLASSES[m.class]?.label || m.class || '')}${m.enacted ? ' · enacted ' + esc(isoDate(m.enacted)) : ''}${m.measure ? ' · ' + esc(m.measure) : ''}</span></h1>
+    <h1>${esc(m.title || st.slug)}<span class="sub">${esc(CLASSES[m.class]?.label || m.class || '')}${m.version ? ' · version ' + m.version : ''}${m.enacted ? ' · in force since ' + esc(isoDate(m.enacted)) : ''}${m.measure ? ' · ' + esc(m.measure) : ''}</span></h1>
     <div class="row">
       <button class="plain" data-copy="stat.${esc(st.slug)}">copy citation</button>
       <a class="button" target="_blank" rel="noopener" href="https://github.com/${REPO}/edit/${BRANCH}/statutes/${esc(st.slug)}.md">Edit this statute</a>
@@ -682,6 +689,7 @@ for (const st of C.statutes) {
     <p class="note">Editing statute is an act of the Assembly. The gate refuses the change unless a measure of the right class has carried — art-08/§45/¶1.</p>
     <article class="law">${secs.length ? statuteSections(secs, st.slug) : ''}</article>
     ${links.length ? `<h2>Made under</h2><ul class="list">${links.map((c) => `<li>${link(String(c))}</li>`).join('')}</ul>` : ''}
+    ${(m.history || []).length ? `<h2>Earlier versions</h2><ul class="list">${[].concat(m.history).map((h) => `<li class="quiet">${esc(String(h))}</li>`).join('')}</ul>` : ''}
     ${m.journal ? `<h2>Promulgated</h2><ul class="list"><li><a href="${u(`/journal/${m.journal}/`)}">Journal ${m.journal}</a></li>${m.measure ? `<li><a href="${u(`/assembly/${m.measure}/`)}">${esc(m.measure)}</a></li>` : ''}</ul>` : ''}
     ${back2.length ? `<h2>Cited by</h2><ul class="list">${back2.map((l) => `<li><a href="${u(l.href)}">${esc(l.label)}</a><span class="meta">${esc(String(l.at || '').slice(0, 10))}</span></li>`).join('')}</ul>` : ''}`,
   { on: 'law', narrow: true, script: `

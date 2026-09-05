@@ -40,9 +40,6 @@
             "context": "verify"
           },
           {
-            "context": "receive"
-          },
-          {
             "context": "enact"
           }
         ]

@@ -83,6 +83,9 @@ function loadDocs(root, dir, ext = '.md') {
   const walk = (d, rel = '') => {
     for (const f of fs.readdirSync(d).sort()) {
       const p = path.join(d, f);
+      // Superseded texts are kept for the record, not for the code. The text in
+      // force is the one at the top of statutes/ — art-11/§62/¶3.
+      if (f === 'superseded') continue;
       if (fs.statSync(p).isDirectory()) walk(p, path.join(rel, f));
       else if (f.endsWith(ext)) out.push({ rel: path.join(rel, f), file: p, src: fs.readFileSync(p, 'utf8') });
     }

@@ -3,8 +3,8 @@ offices:
   - id: registrar
     title: Registrar
     holder: c-0006
-    since: 2026-09-04
-    term_ends: 2027-09-04
+    since: 2026-09-05
+    term_ends: 2027-09-05
     established_under: art-06/§28/¶1
     held_under: art-11/§65/¶1
     permissions: [register.admit, register.object, entity.register]

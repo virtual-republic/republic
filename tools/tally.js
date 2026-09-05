@@ -165,8 +165,17 @@ let outcome;
 if (isElection) {
   outcome = instantRunoff(counted, weights, front.candidates || []);
   const early = earlyClose(cast, 0, 0);
+  const quorumNeeded = Math.ceil(spec.quorum * roll.length);
   outcome.open = open && !(cast >= roll.length && (rules.early_close || {}).on_full_participation);
   outcome.early = outcome.open ? null : (early ? early.why : null);
+  outcome.cast = cast;
+  outcome.electorate = roll.length;
+  outcome.quorumNeeded = quorumNeeded;
+  outcome.quorumMet = cast >= quorumNeeded;
+  // An election that has closed with a winner and a quorum has carried, and the
+  // office is filled — art-08/§46/¶1. Without this nothing is ever enacted.
+  outcome.carried = !outcome.open && !!outcome.winner && outcome.quorumMet;
+  outcome.office = front.office || null;
 } else {
   const t = {};
   for (const b of counted) t[b.choice] = (t[b.choice] || 0) + (weights.get(b.citizenId) || 1);
@@ -209,7 +218,11 @@ if (isElection) {
     for (const [c, v] of r.counts) console.log(`    ${String(v).padStart(4)}  ${c}`);
     if (r.eliminated) console.log(`    eliminated: ${r.eliminated}`);
   });
-  console.log(`\nElected: ${outcome.winner ?? 'no result'}`);
+  console.log(`\nquorum ${outcome.cast}/${outcome.electorate}, ${outcome.quorumNeeded} needed — ${outcome.quorumMet ? 'met' : 'NOT MET'}`);
+  console.log(outcome.carried
+    ? `\n  ELECTED ${outcome.winner} — CARRIED (art-08/§46/¶1)`
+    : outcome.open ? '\n  PROVISIONAL — voting is still open'
+    : `\n  NOT CARRIED — ${outcome.winner ? 'quorum not met' : 'no winner'}`);
 } else {
   console.log(`  yes      ${outcome.yes}`);
   console.log(`  no       ${outcome.no}`);
@@ -231,7 +244,7 @@ fs.mkdirSync(dir, { recursive: true });
 fs.writeFileSync(path.join(dir, '_result.json'), JSON.stringify(out, null, 2));
 console.log(`\nWritten to ballots/${front.id}/_result.json`);
 
-process.exit(isElection || outcome.open ? 0 : outcome.carried ? 0 : 1);
+process.exit(outcome.open ? 0 : outcome.carried ? 0 : 1);
 
 function instantRunoff(ballots, weights, candidates) {
   const active = new Set(candidates.length ? candidates : ballots.flatMap((b) => b.choice));

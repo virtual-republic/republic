@@ -16,8 +16,8 @@
   --title: 2.5rem;
   --subtitle: 1.5rem;
 
-  --pad: clamp(1.25rem, 2.5vw, 2.75rem);
-  --measure: 44rem;
+  --pad: clamp(1.5rem, 5vw, 6rem);
+  --measure: 58rem;
 }
 
 * { box-sizing: border-box; }
@@ -70,7 +70,7 @@ h2 {
 }
 h2:first-child { margin-top: 0; }
 
-.lede { font-size: var(--subtitle); line-height: 1.45; max-width: 32ch; margin: 0 0 3rem; }
+.lede { font-size: var(--subtitle); line-height: 1.45; max-width: 40ch; margin: 0 0 3rem; }
 .quiet { color: var(--grey); }
 .rule { border: 0; border-top: 1px solid var(--line); margin: 3rem 0; }
 

@@ -29,7 +29,9 @@
     "issue": "node tools/issue.js",
     "settle": "node tools/settle.js",
     "order": "node tools/order.js",
-    "contract": "node tools/contract.js"
+    "contract": "node tools/contract.js",
+    "codify": "node tools/codify.js",
+    "approver": "node tools/approver.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

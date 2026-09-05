@@ -77,16 +77,15 @@ let closed = 0, enacted = 0;
 
 for (const d of due) {
   console.log(`\n=== ${d.id} ===`);
-  let carried = false;
   try {
-    const out = execFileSync('node', ['tools/tally.js', d.id], { encoding: 'utf8' });
-    console.log(out.trim());
-    carried = /\bCARRIED\b/.test(out) && !/NOT CARRIED/.test(out);
+    console.log(execFileSync('node', ['tools/tally.js', d.id], { encoding: 'utf8' }).trim());
   } catch (e) {
     console.log(((e.stdout || '') + (e.stderr || '')).trim());
-    carried = false;
   }
   closed++;
+  // The recorded result is the fact, not what the tool printed.
+  const r = readResult(d.id);
+  const carried = !!(r && r.outcome && r.outcome.carried);
 
   if (carried) {
     try {

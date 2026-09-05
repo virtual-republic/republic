@@ -17,9 +17,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+        with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: '22' }
       - run: npm ci --omit=dev || npm install --omit=dev
+      - name: Every changed measure must be receivable (art-08/§41)
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'proposals/*.md' | grep -v TEMPLATE || true)
+          for f in $FILES; do echo "::group::$f"; node tools/validate.js "$f"; echo "::endgroup::"; done
+
+      - name: Who is the Registrar?
+        run: node tools/approver.js --who
+
+      - name: Has the Registrar approved?
+        if: github.event_name == 'pull_request'
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          APPROVERS=$(gh api "repos/$GITHUB_REPOSITORY/pulls/${{ github.event.pull_request.number }}/reviews" \
+            --jq '[.[] | select(.state=="APPROVED") | .user.login] | join(",")' 2>/dev/null || echo "")
+          node tools/approver.js --approvers "$APPROVERS"
+
       - name: Does this change require a measure, and did it carry?
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
