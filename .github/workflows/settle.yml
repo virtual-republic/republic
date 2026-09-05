@@ -30,6 +30,8 @@ jobs:
       - name: Settle
         run: node tools/settle.js | tee settle.txt
 
+      # A refused instrument is recorded in refused/ and is not a failure. The
+      # run fails only if the register itself stops verifying.
       - name: The register must still verify
         run: node tools/verify.js && node tools/test.js
 
@@ -39,7 +41,7 @@ jobs:
           if [ -z "$(git status --porcelain)" ]; then echo "nothing settled"; exit 0; fi
           git config user.name  "Treasurer"
           git config user.email "treasurer@users.noreply.github.com"
-          git add ledger/ transfers/ orders/ contracts/ settled/ 2>/dev/null || true
+          git add ledger/ transfers/ orders/ contracts/ entity-acts/ settled/ refused/ register/ 2>/dev/null || true
           git commit -m "settle (art-09/§50/¶2, art-09/§52/¶2)"
           if git push origin HEAD:main; then
             echo "recorded on main"

@@ -1,0 +1,58 @@
+# art-02/§11/¶1 — every act cites the provision under which it is made.
+#
+# The gate runs on pull requests. A direct push to main never reaches it, and
+# GitHub has no way to scope a ruleset bypass to particular paths — so the
+# automation that records ballots and settlements could, in principle, be used
+# to push anything.
+#
+# This does not prevent that. It notices it. Every push to main is judged
+# against the same rules after the fact, and an ungated change to the
+# Constitution, the law, or the tools raises an issue naming what changed and
+# what it required. Detection, not prevention, is the guarantee on offer
+# throughout this design.
+name: audit
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, issues: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 2 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - run: npm ci --omit=dev || npm install --omit=dev
+
+      - name: Was this change gated?
+        id: gate
+        run: node tools/gate.js --after-the-fact | tee audit.txt
+        continue-on-error: true
+
+      - name: Raise it if not
+        if: steps.gate.outcome == 'failure'
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          {
+            echo "A change landed on \`main\` without the measure it required."
+            echo
+            echo "Commit: ${{ github.sha }}"
+            echo "Pushed by: @${{ github.actor }}"
+            echo
+            echo '```'
+            cat audit.txt
+            echo '```'
+            echo
+            echo "Under art-08/§45/¶1 what is enacted is what carried. Either carry a measure"
+            echo "naming this change, or revert it."
+          } > body.md
+          gh issue create --title "Ungated change on main — ${{ github.sha }}" --body-file body.md \
+            --label "ungated" 2>/dev/null \
+            || gh issue create --title "Ungated change on main — ${{ github.sha }}" --body-file body.md
+          exit 1
+
+      - if: always()
+        run: cat audit.txt >> $GITHUB_STEP_SUMMARY || true

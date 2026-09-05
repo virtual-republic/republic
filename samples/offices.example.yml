@@ -1,42 +1,52 @@
-# A citizen may hold more than one office — art-06/§29/¶2.
 offices:
   - id: registrar
     title: Registrar
     holder: c-0006
-    since: 2026-09-05
-    term_ends: 2027-09-05
+    since: '2026-09-05'
+    term_ends: '2027-09-05'
     established_under: art-06/§28/¶1
-    held_under: art-11/§65/¶1
-    permissions: [register.admit, register.object, entity.register]
+    held_under: art-06/§29/¶4
+    permissions:
+      - register.admit
+      - register.object
+      - entity.register
   - id: keeper
     title: Keeper of the Journal
     holder: c-0006
-    since: 2026-09-04
-    term_ends: 2027-09-04
+    since: '2026-09-05'
+    term_ends: '2027-09-05'
     established_under: art-06/§28/¶1
-    held_under: art-11/§65/¶1
-    permissions: [journal.publish, checkpoint.sign]
+    held_under: art-06/§29/¶4
+    permissions:
+      - journal.publish
+      - checkpoint.sign
   - id: treasurer
     title: Treasurer
     holder: c-0006
-    since: 2026-09-04
-    term_ends: 2027-09-04
+    since: '2026-09-05'
+    term_ends: '2027-09-05'
     established_under: art-06/§28/¶1
-    held_under: art-11/§65/¶1
-    permissions: [value.issue, treasury.disburse]
+    held_under: art-06/§29/¶4
+    permissions:
+      - value.issue
+      - treasury.disburse
   - id: auditor
     title: Auditor
     holder: c-0006
-    since: 2026-09-04
-    term_ends: 2027-09-04
+    since: '2026-09-05'
+    term_ends: '2027-09-05'
     established_under: art-06/§28/¶1
-    held_under: art-11/§65/¶1
-    permissions: [audit.report]
+    held_under: art-06/§29/¶4
+    permissions:
+      - audit.report
   - id: judge
     title: Judge of the Court
     holder: c-0006
-    since: 2026-09-04
-    term_ends: 2027-09-04
+    since: '2026-09-05'
+    term_ends: '2027-09-05'
     established_under: art-06/§28/¶1
-    permissions: [court.halt, court.void, court.judge]
-
+    permissions:
+      - court.halt
+      - court.void
+      - court.judge
+    held_under: art-06/§29/¶4

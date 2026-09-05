@@ -652,7 +652,7 @@ git commit -m "give effect to the election" &amp;&amp; git push</pre>
     $('pend').textContent = 'Every carried election has taken effect.';
   }
 
-  function render() {
+  async function render() {
     if (!me) { $('powers').innerHTML = ''; return; }
     const mine = offices.filter((o) => o.holder === me);
     $('msg').className = 'msg';
@@ -667,7 +667,7 @@ git commit -m "give effect to the election" &amp;&amp; git push</pre>
         (empty.length ? '<p class="note">' + empty.length + ' office' + (empty.length === 1 ? ' is' : 's are') +
           ' recorded to a citizenship that is not active, so ' + (empty.length === 1 ? 'it is' : 'they are') +
           ' vacant in fact — art-06/§29/¶4. The Assembly appoints until an election is held:</p>' +
-          '<pre class="cmd">node tools/office.js vacant --fill ' + me + '\ngit add register/offices.yml ledger/events.jsonl\ngit commit -m "appoint to the vacant offices" &amp;&amp; git push</pre>'
+          '<pre class="cmd">node tools/office.js vacant --fill ' + me + '\\ngit add register/offices.yml ledger/events.jsonl\\ngit commit -m "appoint to the vacant offices" &amp;&amp; git push</pre>'
         : '');
     }
     else {
@@ -937,6 +937,14 @@ const indicative = (inst) => {
 
 const trades = events.filter((e) => e.kind === 'order.matched');
 
+const refusedItems = (() => {
+  const d = path.join(ROOT, 'refused');
+  if (!fs.existsSync(d)) return [];
+  return fs.readdirSync(d).filter((f) => f.endsWith('.json')).map((f) => {
+    try { return { file: f, ...JSON.parse(fs.readFileSync(path.join(d, f), 'utf8')) }; } catch { return null; }
+  }).filter(Boolean);
+})();
+
 write('exchange', page('Exchange', `
   <h1>Exchange<span class="sub">Cleared by periodic auction at a uniform price, with no priority to the order of arrival — art-09/§52/¶2.</span></h1>
 
@@ -968,6 +976,12 @@ write('exchange', page('Exchange', `
   <div class="row"><button id="osign" disabled>Sign order</button><a id="ocommit" class="button" hidden>Open on GitHub</a></div>
   <div class="out" id="oout" hidden></div>
   <p class="note">An order does not execute on arrival. It joins the book and clears at the next auction, at one price for everyone — art-09/§52/¶2.</p>` : ''}
+
+  ${refusedItems.length ? `<h2>Refused</h2>
+  <p class="quiet">An instrument that did not settle is kept with the reason, rather than retried or discarded.</p>
+  <table><thead><tr><th>Kind</th><th>By</th><th>Why</th></tr></thead>
+  <tbody>${refusedItems.map((r) => `<tr><td>${esc(r.kind || '—')}</td><td class="q">${esc(r.by || '')}</td>
+    <td class="q">${esc(r._refused?.why || '')}</td></tr>`).join('')}</tbody></table>` : ''}
 
   <h2>Trades</h2>
   <table><thead><tr><th>Instrument</th><th>Seller</th><th>Buyer</th><th>Quantity</th><th>Price</th><th>When</th></tr></thead>

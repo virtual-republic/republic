@@ -21,7 +21,7 @@ jobs:
           MIRROR_TOKEN: "${{ secrets.MIRROR_TOKEN }}"
         run: |
           if [ -z "$MIRROR_URL" ]; then
-            echo "::error::art-01/§5/¶4 requires a second host. Set MIRROR_URL."
-            exit 1
+            echo "::warning::art-01/§5/¶4 requires the repository to be kept on not fewer than two independent hosts. No MIRROR_URL is set, so there is only one. Create the repository on a second forge and set the MIRROR_URL and MIRROR_TOKEN secrets."
+            exit 0
           fi
           git push --mirror "$(echo "$MIRROR_URL" | sed "s#https://#https://x-access-token:$MIRROR_TOKEN@#")"

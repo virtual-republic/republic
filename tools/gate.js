@@ -38,6 +38,7 @@ const RULES = [
   { pattern: /^transfers\//,                        class: null, why: 'a signed transfer, settled by the workflow (art-09/§50/¶2)' },
   { pattern: /^orders\//,                           class: null, why: 'an order on the exchange (art-09/§52/¶3)' },
   { pattern: /^settled\//,                          class: null, why: 'settled instruments' },
+  { pattern: /^refused\//,                          class: null, why: 'instruments refused at settlement, kept with the reason' },
   { pattern: /^entity-acts\//,                      class: null, why: 'an entity acting through its organs (art-04/§21/¶2)' },
   { pattern: /^contracts\//,                        class: null, why: 'a contract between parties, not an act of the Assembly' },
   { pattern: /^charters\//,                         class: null, why: 'an entity charter is the entity\u2019s own instrument (art-04/§21/¶1)' },
@@ -82,7 +83,12 @@ const ORDER = ['policy', 'ordinary', 'organic', 'amendment', 'entrenched'];
 
 // --- what changed ----------------------------------------------------------
 
-const base = arg('base', process.env.BASE_REF ? `origin/${process.env.BASE_REF}` : 'origin/main');
+// --after-the-fact judges a commit that has already landed on main. The gate
+// cannot prevent a direct push — GitHub has no path-scoped bypass — so what it
+// can do is notice. Detection, as everywhere else in this design.
+const retrospective = args.includes('--after-the-fact');
+const base = arg('base', retrospective ? 'HEAD~1'
+  : process.env.BASE_REF ? `origin/${process.env.BASE_REF}` : 'origin/main');
 let changed;
 try {
   changed = execFileSync('git', ['diff', '--name-only', `${base}...HEAD`], { encoding: 'utf8' })
@@ -238,6 +244,13 @@ console.log(`${measure} carried. This change may be enacted (art-08/§45/¶1).`)
 process.exit(0);
 
 function fail(lines) {
+  if (retrospective) {
+    console.error('\nUNGATED CHANGE — this landed on main without the measure it required:');
+    for (const l of lines) console.error(`  ${l}`);
+    console.error('\nart-08/§45/¶1 — what is enacted is what carried. Either carry a measure');
+    console.error('naming this change, or revert it.');
+    process.exit(1);
+  }
   console.error('\nNot enacted:');
   for (const l of lines) console.error(`  ${l}`);
   process.exit(1);

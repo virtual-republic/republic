@@ -35,7 +35,10 @@
     "court": "node tools/court.js",
     "key": "node tools/key.js",
     "value": "node tools/value.js",
-    "manage": "node tools/manage.js"
+    "manage": "node tools/manage.js",
+    "office": "node tools/office.js",
+    "doctor": "node tools/doctor.js",
+    "selftest": "node tools/selftest.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

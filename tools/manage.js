@@ -57,8 +57,15 @@ if (cmd === 'members') {
       id: entity, type: e.type, name: e.name || e.name_en || entity,
       organs: e.organs || [], today: new Date().toISOString().slice(0, 10),
     }));
-    console.log(`${entity} had no charter. Written a default to ${file}.`);
-    console.log('Edit it, then run this again to sign it.');
+    console.log(`${entity} had no charter — art-04/§21/¶1 says it must have one.`);
+    console.log(`Written a default to:\n  ${full}`);
+    console.log('');
+    console.log('It exists only on this machine until you commit it:');
+    console.log(`  git add ${file} && git commit -m "charter of ${entity}" && git push`);
+    console.log('');
+    console.log('Edit the text first if you want to. Then, to amend it later:');
+    console.log(`  node tools/manage.js charter --entity ${entity} --by ${by}`);
+    console.log(`  node tools/settle.js`);
     process.exit(0);
   }
   body = { ...body, kind: 'charter.amend', text: fs.readFileSync(full, 'utf8') };

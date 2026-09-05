@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { append } from './lib/events.js';
 import { params } from './lib/params.js';
+import { offices } from './lib/registers.js';
 import { accounts, mayActFor, ledgerState, loadPending, checkSignature, contracts, contractComplete } from './lib/value.js';
 import { sha256 } from './lib/events.js';
 import yaml from 'js-yaml';
@@ -22,7 +23,28 @@ const dry = process.argv.includes('--dry-run');
 const P = params(ROOT);
 
 let applied = 0, refused = 0;
-const say = (ok, what, why) => { console.log(`  ${ok ? '✓' : '✗'} ${what}${why ? ' — ' + why : ''}`); ok ? applied++ : refused++; };
+const refusals = [];
+
+// A refusal is a normal outcome — a signature that does not verify, a balance
+// that will not cover it. It is not a broken build. The instrument is set aside
+// with the reason beside it, so it is not retried forever and the citizen can
+// see why.
+const say = (ok, what, why, file) => {
+  console.log(`  ${ok ? '\u2713' : '\u2717'} ${what}${why ? ' \u2014 ' + why : ''}`);
+  if (ok) { applied++; return; }
+  refused++;
+  refusals.push({ what, why });
+  if (file && !dry) {
+    const dir = path.join(ROOT, 'refused');
+    fs.mkdirSync(dir, { recursive: true });
+    const name = path.basename(file);
+    try {
+      const body = JSON.parse(fs.readFileSync(file, 'utf8'));
+      fs.writeFileSync(path.join(dir, name), JSON.stringify({ ...body, _refused: { why, at: new Date().toISOString() } }, null, 2));
+      fs.rmSync(file);
+    } catch { /* leave it where it is if it cannot be read */ }
+  }
+};
 const done = (file) => { if (!dry) { fs.mkdirSync(path.join(ROOT, 'settled'), { recursive: true }); fs.renameSync(file, path.join(ROOT, 'settled', path.basename(file))); } };
 
 // ---- transfers ---------------------------------------------------------------
@@ -34,13 +56,35 @@ for (const t of transfers) {
   const acct = accounts(ROOT);
   const state = ledgerState(ROOT);
 
+  // art-09/§49/¶1 — the unit is issued only by the Treasurer, only under a
+  // resolution of the Assembly, and only in the amount that resolution states.
+  if (t.kind === 'value-issue') {
+    const treasurer = offices(ROOT).find((o) => (o.permissions || []).includes('value.issue'));
+    if (!treasurer || treasurer.holder !== t.by) {
+      say(false, t.file, `only the holder of value.issue may issue the unit (art-09/§49/¶1) — that is ${treasurer ? treasurer.holder : 'nobody'}`, t.path);
+      continue;
+    }
+    if (!t.resolution) { say(false, t.file, 'an issue must cite the resolution that authorises it (art-09/§49/¶1)', t.path); continue; }
+    const rf = path.join(ROOT, 'ballots', t.resolution, '_result.json');
+    if (!fs.existsSync(rf)) { say(false, t.file, `${t.resolution} has not been counted`, t.path); continue; }
+    const r = JSON.parse(fs.readFileSync(rf, 'utf8'));
+    if (!r.outcome?.carried) { say(false, t.file, `${t.resolution} did not carry, so it authorises nothing (art-08/§45/¶1)`, t.path); continue; }
+    const cap = P.value.issue_cap_per_resolution;
+    if (t.amount > cap) { say(false, t.file, `${t.amount} exceeds the cap of ${cap} per resolution`, t.path); continue; }
+    if (!dry) append(ROOT, { at: t.at, author: t.by, kind: 'value.issued', provision: 'art-09/§49/¶1',
+      payload: { amount: t.amount, unit: P.value.unit, to: t.to || 'treasury', resolution: t.resolution } });
+    say(true, `issued ${t.amount} ${P.value.unit} to ${t.to || 'treasury'} under ${t.resolution}`);
+    done(t.path);
+    continue;
+  }
+
   // art-09/§51/¶1 — an entity issues a share in itself, through an organ.
   if (t.kind === 'instrument-issue') {
     const types = P.entities.types;
     const ent = acct.get(t.issuer);
-    if (!ent || ent.kind !== 'entity') { say(false, t.file, `${t.issuer} is not an entity`); continue; }
-    if (!types[ent.type]?.may_issue_instruments) { say(false, t.file, `a ${ent.type} may not issue instruments (art-04/§20/¶3)`); continue; }
-    if (!mayActFor(ROOT, t.by, t.issuer)) { say(false, t.file, `${t.by} is not an organ of ${t.issuer}`); continue; }
+    if (!ent || ent.kind !== 'entity') { say(false, t.file, `${t.issuer} is not an entity`, t.path); continue; }
+    if (!types[ent.type]?.may_issue_instruments) { say(false, t.file, `a ${ent.type} may not issue instruments (art-04/§20/¶3)`, t.path); continue; }
+    if (!mayActFor(ROOT, t.by, t.issuer)) { say(false, t.file, `${t.by} is not an organ of ${t.issuer}`, t.path); continue; }
     if (!dry) append(ROOT, { at: t.at, author: t.by, entity: t.issuer, kind: 'instrument.issued', provision: 'art-09/§51/¶1',
       payload: { instrument: t.instrument, issuer: t.issuer, class: t.class, quantity: t.quantity, to: t.to } });
     say(true, `${t.issuer} issued ${t.quantity} × ${t.instrument} to ${t.to}`);
@@ -48,21 +92,21 @@ for (const t of transfers) {
     continue;
   }
 
-  if (!acct.has(t.from) || !acct.has(t.to)) { say(false, t.file, 'unknown account'); continue; }
-  if (!mayActFor(ROOT, t.by, t.from)) { say(false, t.file, `${t.by} may not act for ${t.from} (art-02/§12/¶3)`); continue; }
+  if (!acct.has(t.from) || !acct.has(t.to)) { say(false, t.file, 'unknown account', t.path); continue; }
+  if (!mayActFor(ROOT, t.by, t.from)) { say(false, t.file, `${t.by} may not act for ${t.from} (art-02/§12/¶3)`, t.path); continue; }
 
   const sig = checkSignature(ROOT, t, t.by);
-  if (!sig.ok) { say(false, t.file, sig.error); continue; }
+  if (!sig.ok) { say(false, t.file, sig.error, t.path); continue; }
 
   if (t.kind === 'transfer') {
     const bal = state.balances.get(t.from) || 0;
-    if (!P.value.transfer.allow_negative && bal < t.amount) { say(false, t.file, `${t.from} holds ${bal}, needs ${t.amount}`); continue; }
+    if (!P.value.transfer.allow_negative && bal < t.amount) { say(false, t.file, `${t.from} holds ${bal}, needs ${t.amount}`, t.path); continue; }
     if (!dry) append(ROOT, { at: t.at, author: t.by, kind: 'value.transferred', provision: 'art-09/§50/¶2',
       payload: { from: t.from, to: t.to, amount: t.amount, unit: P.value.unit, ...(t.note ? { note: t.note } : {}) } });
     say(true, `${t.from} → ${t.to}  ${t.amount} ${P.value.unit}`);
   } else {
     const held = (state.holdings.get(t.from) || new Map()).get(t.instrument) || 0;
-    if (held < t.quantity) { say(false, t.file, `${t.from} holds ${held} of ${t.instrument}`); continue; }
+    if (held < t.quantity) { say(false, t.file, `${t.from} holds ${held} of ${t.instrument}`, t.path); continue; }
     if (!dry) append(ROOT, { at: t.at, author: t.by, kind: 'instrument.transferred', provision: 'art-09/§51/¶2',
       payload: { from: t.from, to: t.to, instrument: t.instrument, quantity: t.quantity } });
     say(true, `${t.from} → ${t.to}  ${t.quantity} × ${t.instrument}`);
@@ -85,11 +129,11 @@ if (acts.length) console.log(`\nEntity acts (${acts.length})`);
 
 for (const act of acts) {
   const file = path.join(ROOT, `register/entities/${act.entity}.yml`);
-  if (!fs.existsSync(file)) { say(false, act.file, `no entity ${act.entity}`); continue; }
+  if (!fs.existsSync(file)) { say(false, act.file, `no entity ${act.entity}`, act.path); continue; }
 
   const sig = checkSignature(ROOT, act, act.by);
-  if (!sig.ok) { say(false, act.file, sig.error); continue; }
-  if (!mayActFor(ROOT, act.by, act.entity)) { say(false, act.file, `${act.by} is not an organ of ${act.entity} (art-04/§21/¶2)`); continue; }
+  if (!sig.ok) { say(false, act.file, sig.error, act.path); continue; }
+  if (!mayActFor(ROOT, act.by, act.entity)) { say(false, act.file, `${act.by} is not an organ of ${act.entity} (art-04/§21/¶2)`, act.path); continue; }
 
   const doc = yaml.load(fs.readFileSync(file, 'utf8')) || {};
   let what = '';
@@ -127,7 +171,7 @@ for (const act of acts) {
       break;
     }
     default:
-      say(false, act.file, `unknown act "${act.kind}"`);
+      say(false, act.file, `unknown act "${act.kind}"`, act.path);
       continue;
   }
 
@@ -150,8 +194,8 @@ if (orders.length) console.log(`\nExchange (${orders.length} orders)`);
 const byInstrument = new Map();
 for (const o of orders) {
   const sig = checkSignature(ROOT, o, o.by);
-  if (!sig.ok) { say(false, o.file, sig.error); continue; }
-  if (!mayActFor(ROOT, o.by, o.account)) { say(false, o.file, `${o.by} may not act for ${o.account}`); continue; }
+  if (!sig.ok) { say(false, o.file, sig.error, o.path); continue; }
+  if (!mayActFor(ROOT, o.by, o.account)) { say(false, o.file, `${o.by} may not act for ${o.account}`, o.path); continue; }
   if (!byInstrument.has(o.instrument)) byInstrument.set(o.instrument, []);
   byInstrument.get(o.instrument).push(o);
 }
@@ -235,4 +279,9 @@ for (const c of ready) {
 
 console.log(`\n${applied} applied, ${refused} refused${dry ? ' (dry run — nothing changed)' : ''}.`);
 if (!applied && !refused) console.log('Nothing pending.');
-process.exit(refused && !applied ? 1 : 0);
+// Exit 0 whatever was refused. The workflow fails only when the register does.
+if (refusals.length) {
+  console.log('\nRefused, and set aside in refused/ with the reason:');
+  for (const r of refusals) console.log(`  ${r.what}${r.why ? ' — ' + r.why : ''}`);
+}
+process.exit(0);

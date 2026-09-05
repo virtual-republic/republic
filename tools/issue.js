@@ -38,6 +38,19 @@ if (unit != null) {
     process.exit(1);
   }
   if (!under) { console.error('An issue requires the resolution that authorises it (art-09/§49/¶1). Pass --under <measure>.'); process.exit(1); }
+
+  // art-08/§45/¶1 — a measure that has not carried authorises nothing. Naming
+  // one is not the same as having one.
+  const resultFile = path.join(ROOT, 'ballots', under, '_result.json');
+  if (!fs.existsSync(resultFile)) {
+    console.error(`${under} has not been counted, so it authorises nothing (art-08/§45/¶1).`);
+    process.exit(1);
+  }
+  const outcome = JSON.parse(fs.readFileSync(resultFile, 'utf8')).outcome || {};
+  if (!outcome.carried) {
+    console.error(`${under} ${outcome.open ? 'is still open' : 'did not carry'}, so it authorises nothing (art-08/§45/¶1).`);
+    process.exit(1);
+  }
   const cap = params(ROOT).value.issue_cap_per_resolution;
   if (unit > cap) { console.error(`${unit} exceeds the cap of ${cap} per resolution (parameters.yml).`); process.exit(1); }
 
