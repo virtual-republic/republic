@@ -16,6 +16,7 @@ import path from 'node:path';
 import { append } from './lib/events.js';
 import { citizens, entities, offices } from './lib/registers.js';
 import { params } from './lib/params.js';
+import { defaultCharter } from './lib/charter.js';
 import yaml from 'js-yaml';
 
 const ROOT = process.cwd();
@@ -109,49 +110,9 @@ fs.mkdirSync(path.join(ROOT, 'charters'), { recursive: true });
 const charterPath = `charters/${id}.md`;
 
 if (!fs.existsSync(path.join(ROOT, charterPath))) {
-  fs.writeFileSync(path.join(ROOT, charterPath), `---
-id: ${id}
-type: ${type}
-title: ${name}
-formed: ${today}
----
-
-## § 1  Name and type
-
-¹ The entity is named ${name}.
-
-² It is ${type === 'organ' ? 'an organ of the Republic' : `a ${type}`} formed under Article 4 § 19 ¹.
-
-## § 2  Purpose
-
-¹ ${purpose || 'The purpose of the entity is stated by its members and may be altered by them.'}
-
-## § 3  Membership
-
-¹ Membership is open to any citizen on application to an organ named in § 4.
-
-² A member may withdraw at any time by a signed record.
-
-## § 4  Organs
-
-${organs.map((o, i) => `${'¹²³⁴⁵⁶⁷⁸⁹'[i] || i + 1} The ${o.name} is held by ${o.held_by.join(', ')} and acts for the entity within the authority this charter confers.`).join('\n\n')}
-
-## § 5  Decisions
-
-¹ The entity decides by a majority of its members, unless this charter provides otherwise.
-
-² Every decision is recorded and published.
-
-## § 6  Consistency
-
-¹ This charter is subordinate to the Constitution, and any provision inconsistent with it is of no effect — Article 4 § 21 ³.
-
-## § 7  Dissolution
-
-¹ The entity is dissolved by resolution of its members, by the procedure in this charter, or by judgment of the Court.
-
-² On dissolution its holdings pass to the Treasury, unless the resolution of dissolution provides otherwise — Article 4 § 23 ².
-`);
+  fs.writeFileSync(path.join(ROOT, charterPath), defaultCharter({
+    id, type, name, organs, purpose, today,
+  }));
 }
 
 // --- register entry --------------------------------------------------------

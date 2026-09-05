@@ -11,6 +11,7 @@ import { buildCorpus, linkify, isoDate } from './lib/corpus.js';
 import { read, verifyChain, checkpointList } from './lib/events.js';
 import { citizens, activeCitizens, entities, offices } from './lib/registers.js';
 import { params, classes } from './lib/params.js';
+import { defaultCharter } from './lib/charter.js';
 import { ledgerState, accounts, contracts, contractComplete, TREASURY } from './lib/value.js';
 
 const ROOT = process.cwd();
@@ -1162,7 +1163,14 @@ for (const e of ents) {
       <tr><td class="q">May issue shares</td><td class="q">${type.may_issue_instruments ? 'yes — art-09/§51/¶1' : 'no — art-04/§20/¶3'}</td></tr>
     </tbody></table>
 
-    ${secs.length ? `<h2>Charter</h2><article class="law">${sections(secs, null)}</article>` : ''}
+    ${secs.length ? `<h2>Charter</h2><article class="law">${sections(secs, null)}</article>` : `
+    <h2>Charter</h2>
+    <p class="quiet">${esc(e.id)} has no charter yet. Every entity has one — art-04/§21/¶1. An entity formed on the website starts without it, because one commit creates one file.</p>
+    <div class="row"><a class="button" target="_blank" rel="noopener" href="${esc(
+      `https://github.com/${REPO}/new/${BRANCH}?filename=${e.charter || `charters/${e.id}.md`}&value=${encodeURIComponent(defaultCharter({
+        id: e.id, type: e.type, name: nameOf(e), organs: e.organs || [], today: isoDate(e.formed),
+      }))}&message=${encodeURIComponent('charter of ' + e.id)}`
+    )}">Create the charter</a></div>`}
 
     ${mine.length ? `<h2>Instruments</h2>
     <table><thead><tr><th>Instrument</th><th>Issued</th></tr></thead>
@@ -1229,7 +1237,8 @@ for (const e of ents) {
     }
     document.addEventListener('identity', gate); gate();
 
-    try { $('ctext').value = await (await fetch('${u(`/data/charters/${e.id}.md`)}')).text(); } catch {}
+    try { $('ctext').value = await (await fetch('${u(`/data/charters/${e.id}.md`)}')).text(); }
+    catch { $('ctext').value = ${JSON.stringify(defaultCharter({ id: e.id, type: e.type, name: nameOf(e), organs: e.organs || [], today: isoDate(e.formed) }))}; }
 
     const rand = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map((b) => b.toString(16).padStart(2, '0')).join('');
     const num = (id) => { const v = Number($(id).value); if (!v || v <= 0) throw new Error('give a positive number'); return v; };

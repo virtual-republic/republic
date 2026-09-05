@@ -14,6 +14,7 @@ import { sign } from './lib/sshsig.js';
 import { readKey } from './lib/key.js';
 import { mayActFor } from './lib/value.js';
 import { entities, citizens } from './lib/registers.js';
+import { defaultCharter } from './lib/charter.js';
 
 const ROOT = process.cwd();
 const cmd = process.argv[2];
@@ -47,8 +48,20 @@ if (cmd === 'members') {
   }) };
 } else if (cmd === 'charter') {
   const file = a('file', e.charter || `charters/${entity}.md`);
-  if (!fs.existsSync(path.join(ROOT, file))) { console.error(`No file at ${file}.`); process.exit(1); }
-  body = { ...body, kind: 'charter.amend', text: fs.readFileSync(path.join(ROOT, file), 'utf8') };
+  const full = path.join(ROOT, file);
+  if (!fs.existsSync(full)) {
+    // art-04/§21/¶1 — every entity has a charter. An entity formed on the
+    // website has none yet, because one commit link creates one file.
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, defaultCharter({
+      id: entity, type: e.type, name: e.name || e.name_en || entity,
+      organs: e.organs || [], today: new Date().toISOString().slice(0, 10),
+    }));
+    console.log(`${entity} had no charter. Written a default to ${file}.`);
+    console.log('Edit it, then run this again to sign it.');
+    process.exit(0);
+  }
+  body = { ...body, kind: 'charter.amend', text: fs.readFileSync(full, 'utf8') };
 } else if (cmd === 'dissolve') {
   body = { ...body, kind: 'entity.dissolve' };
 } else { console.error(`unknown command "${cmd}"`); process.exit(2); }
