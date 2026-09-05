@@ -1,0 +1,32 @@
+{
+  "proposal": "P-0005",
+  "class": "election",
+  "at": "2026-09-05T08:57:55.558Z",
+  "open": false,
+  "closes": "2026-09-12T23:59:59.000Z",
+  "counted": [
+    {
+      "citizenId": "c-0006",
+      "choice": [
+        "c-0006"
+      ],
+      "at": "2026-09-05T02:02:24.916Z",
+      "receipt": "0914aca75325c18e"
+    }
+  ],
+  "rejected": [],
+  "delegated": [],
+  "outcome": {
+    "rounds": [],
+    "winner": "c-0006",
+    "open": false,
+    "early": "every citizenship has voted (art-08/§43/¶6)",
+    "cast": 1,
+    "electorate": 1,
+    "quorumNeeded": 1,
+    "quorumMet": true,
+    "carried": true,
+    "office": "registrar"
+  },
+  "enacted": "2026-09-05T08:57:55.625Z"
+}
