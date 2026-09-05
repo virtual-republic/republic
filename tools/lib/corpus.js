@@ -114,7 +114,7 @@ export function buildCorpus(root) {
     const slug = bare.replace(/§/g, 's').replace(/¶/g, 'p').replace(/\//g, '-');
     const e = add(id, {
       corpus: 'const',
-      href: `/constitution/${slug}/`,
+      href: `/journal/constitution/${slug}/`,
       label: bare,
       kind: p.kind,
       document: p.article,
@@ -132,12 +132,12 @@ export function buildCorpus(root) {
     if (!doc) { doc = { slug, versions: {} }; statutes.push(doc); }
     doc.versions[lang] = { ...meta, sections: parseSections(body) };
 
-    add(`stat.${slug}`, { corpus: 'stat', href: `/statutes/${slug}/`, label: meta.title || slug, kind: 'document', document: slug });
+    add(`stat.${slug}`, { corpus: 'stat', href: `/journal/law/${slug}/`, label: meta.title || slug, kind: 'document', document: slug });
     for (const sec of doc.versions[lang].sections) {
       const sid = `stat.${slug}/§${sec.num}`;
-      add(sid, { corpus: 'stat', href: `/statutes/${slug}/#s${sec.num}`, label: `${slug} § ${sec.num}`, kind: 'section', document: slug }).text[lang] = sec.heading;
+      add(sid, { corpus: 'stat', href: `/journal/law/${slug}/#s${sec.num}`, label: `${slug} § ${sec.num}`, kind: 'section', document: slug }).text[lang] = sec.heading;
       for (const p of sec.paragraphs) {
-        add(`${sid}/¶${p.num}`, { corpus: 'stat', href: `/statutes/${slug}/#s${sec.num}p${p.num}`, label: `${slug} § ${sec.num} ¶ ${p.num}`, kind: 'paragraph', document: slug }).text[lang] = p.text;
+        add(`${sid}/¶${p.num}`, { corpus: 'stat', href: `/journal/law/${slug}/#s${sec.num}p${p.num}`, label: `${slug} § ${sec.num} ¶ ${p.num}`, kind: 'paragraph', document: slug }).text[lang] = p.text;
       }
     }
   }
@@ -149,7 +149,7 @@ export function buildCorpus(root) {
     const year = isoDate(meta.date).slice(0, 4) || path.dirname(d.rel);
     const issue = { ...meta, date: isoDate(meta.date), year, body: body.trim(), id: `jour.${year}/${meta.number}` };
     journal.push(issue);
-    add(issue.id, { corpus: 'jour', href: `/journal/${meta.number}/`, label: `Journal ${meta.number}`, kind: 'issue', document: `${year}/${meta.number}` });
+    add(issue.id, { corpus: 'jour', href: `/journal/issues/${meta.number}/`, label: `Journal ${meta.number}`, kind: 'issue', document: `${year}/${meta.number}` });
   }
   journal.sort((a, b) => (a.number || 0) - (b.number || 0));
 
@@ -160,7 +160,7 @@ export function buildCorpus(root) {
     const year = isoDate(meta.date).slice(0, 4);
     const j = { ...meta, year, body: body.trim(), id: `jdgt.${year}/${meta.number}` };
     judgments.push(j);
-    add(j.id, { corpus: 'jdgt', href: `/judgments/#d${meta.number}`, label: `Judgment ${meta.number}`, kind: 'judgment', document: `${year}/${meta.number}` });
+    add(j.id, { corpus: 'jdgt', href: `/journal/court/${meta.number}/`, label: `Judgment ${meta.number}`, kind: 'judgment', document: `${year}/${meta.number}` });
   }
 
   // ---- Measures -----------------------------------------------------------

@@ -48,7 +48,7 @@ const issueTitle = (j) => j.title || j.title_en || `Issue ${j.number}`;
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const link = (t) => linkify(t, C.entries, { esc, base: BASE });
 const slug = (bare) => bare.replace(/§/g, 's').replace(/¶/g, 'p').replace(/\//g, '-');
-const href = (bare) => u(`/constitution/${slug(bare)}/`);
+const href = (bare) => u(`/journal/constitution/${slug(bare)}/`);
 
 // ---------------------------------------------------------------- helpers ---
 
@@ -99,13 +99,18 @@ const cite = (id, e) => {
   if (parts.length === 2) cite(parts[0], e);
 };
 for (const e of events) cite(e.provision, { kind: 'record', label: e.kind, href: `/ledger/#r${e.seq}`, at: e.at });
-for (const j of C.journal) for (const c of [].concat(j.cites || [])) cite(String(c), { kind: 'journal', label: `Journal ${j.number}`, href: `/journal/${j.number}/`, at: j.date });
+for (const j of C.journal) for (const c of [].concat(j.cites || [])) cite(String(c), { kind: 'journal', label: `Journal ${j.number}`, href: `/journal/issues/${j.number}/`, at: j.date });
 for (const p of C.proposals) for (const c of [].concat(p.cites || [])) cite(String(c), { kind: 'measure', label: p.id, href: `/assembly/${p.id}/`, at: isoDate(p.opened) });
 
 // ------------------------------------------------------------------ page ---
 
-const NAV = [['', 'Republic'], ['constitution', 'Constitution'], ['assembly', 'Assembly'],
-             ['law', 'Law'], ['court', 'Court'], ['treasury', 'Value'], ['journal', 'Journal'], ['register', 'Register'], ['office', 'Office'], ['ledger', 'Ledger']];
+const NAV = [['', 'Republic'], ['journal', 'Journal'], ['assembly', 'Assembly'],
+             ['office', 'Office'], ['register', 'Register'], ['treasury', 'Value'], ['ledger', 'Ledger']];
+
+// Everything the Republic has published lives under /journal/, as it does on
+// disk. These are its parts.
+const JOURNAL_NAV = [['journal/constitution', 'Constitution'], ['journal/law', 'Law'],
+                     ['journal/court', 'Court'], ['journal/issues', 'Issues']];
 
 function page(title, body, { on = '', script = '', narrow = false } = {}) {
   return `<!doctype html>
@@ -117,10 +122,10 @@ function page(title, body, { on = '', script = '', narrow = false } = {}) {
 <body>
 <header class="top">
   <a class="name" href="${u('/')}">${esc(NAME)}</a>
-  <nav>${NAV.map(([s, l]) => `<a href="${u('/' + s + (s ? '/' : ''))}"${on === s ? ' class="on"' : ''}>${esc(l)}</a>`).join('')}</nav>
+  <nav>${NAV.map(([s, l]) => `<a href="${u('/' + s + (s ? '/' : ''))}"${on === s || (s === 'journal' && on.startsWith('journal')) ? ' class="on"' : ''}>${esc(l)}</a>`).join('')}</nav>
   <span class="who"><a href="${u('/key/')}" id="whoami">sign in</a></span>
 </header>
-<main${narrow ? ' class="narrow"' : ''}>${body}</main>
+<main${narrow ? ' class="narrow"' : ''}>${on.startsWith('journal') ? `<nav class="sub-nav">${JOURNAL_NAV.map(([s, l]) => `<a href="${u('/' + s + '/')}"${on === s ? ' class="on"' : ''}>${esc(l)}</a>`).join('')}</nav>` : ''}${body}</main>
 <script type="module">
 // Show which citizenship this browser holds, in the masthead and nowhere else.
 try {
@@ -280,12 +285,12 @@ write('', page('Republic', `
   <h2>Law in force</h2>
   <ul class="list">${C.statutes.length ? C.statutes.slice().reverse().map((st) => {
     const v = st.versions.en || Object.values(st.versions)[0];
-    return `<li><a href="${u(`/law/${st.slug}/`)}">${esc(v.title || st.slug)}</a><span class="meta">${esc(isoDate(v.enacted))}</span></li>`;
+    return `<li><a href="${u(`/journal/law/${st.slug}/`)}">${esc(v.title || st.slug)}</a><span class="meta">${esc(isoDate(v.enacted))}</span></li>`;
   }).join('') : '<li class="quiet">Nothing enacted yet.</li>'}</ul>
 
   <h2>Journal</h2>
   <ul class="list">${C.journal.slice(-5).reverse().map((j) =>
-    `<li><a href="${u('/journal/' + j.number + '/')}">${esc(issueTitle(j))}</a><span class="meta">${esc(j.date)}</span></li>`).join('')
+    `<li><a href="${u('/journal/issues/' + j.number + '/')}">${esc(issueTitle(j))}</a><span class="meta">${esc(j.date)}</span></li>`).join('')
     || '<li class="quiet">No issues yet.</li>'}</ul>
 
   <h2>State</h2>
@@ -298,23 +303,23 @@ write('', page('Republic', `
 
 // ---- constitution ----------------------------------------------------------
 
-write('constitution', page('Constitution', `
+write('journal/constitution', page('Constitution', `
   <h1>Constitution</h1>
   <ol class="contents">${C.constitution.articles.map((a) => {
     const v = a.versions.en;
     return `<li><span class="n">${esc(a.id.replace('art-', ''))}</span><a href="${href(a.id)}">${esc(v.title)}</a>
       ${a.entrenched ? '<span class="meta">entrenched</span>' : ''}</li>`;
-  }).join('')}</ol>`, { on: 'constitution', narrow: true }));
+  }).join('')}</ol>`, { on: 'journal/constitution', narrow: true }));
 
 for (const art of C.constitution.articles) {
   const v = art.versions.en;
-  write(`constitution/${slug(art.id)}`, page(v.title, `
-    <p class="crumb"><a href="${u('/constitution/')}">Constitution</a> · ${esc(art.id)}</p>
+  write(`journal/constitution/${slug(art.id)}`, page(v.title, `
+    <p class="crumb"><a href="${u('/journal/constitution/')}">Constitution</a> · ${esc(art.id)}</p>
     <article class="law">
       <h1>${esc(v.title)}${art.entrenched ? '<span class="sub">Entrenched — art-11/§61</span>' : ''}</h1>
       ${v.note ? `<div class="note">${v.note.split('\n\n').map((x) => `<p>${link(x.replace(/\*/g, ''))}</p>`).join('')}</div>` : ''}
       ${sections(v.sections, art.id)}
-    </article>`, { on: 'constitution', narrow: true }));
+    </article>`, { on: 'journal/constitution', narrow: true }));
 
   for (const sec of v.sections) {
     const targets = [{ bare: `${art.id}/§${sec.num}`, only: null }, ...sec.paragraphs.map((p) => ({ bare: `${art.id}/§${sec.num}/¶${p.num}`, only: p.num }))];
@@ -322,8 +327,8 @@ for (const art of C.constitution.articles) {
       const id = 'const.' + t.bare;
       const links = back.get(id) || [];
       const ps = t.only ? sec.paragraphs.filter((p) => p.num === t.only) : sec.paragraphs;
-      write(`constitution/${slug(t.bare)}`, page(t.bare, `
-        <p class="crumb"><a href="${u('/constitution/')}">Constitution</a> ·
+      write(`journal/constitution/${slug(t.bare)}`, page(t.bare, `
+        <p class="crumb"><a href="${u('/journal/constitution/')}">Constitution</a> ·
           <a href="${href(art.id)}">${esc(v.title)}</a> · § ${sec.num}${t.only ? ' ¶ ' + t.only : ''}</p>
         <h1>${esc(sec.heading)}<span class="sub">${esc(id)}</span></h1>
         <article class="law">${ps.map((p) => para(p.num, p.text)).join('')}</article>
@@ -541,11 +546,14 @@ for (const p of C.proposals) {
     const closes = ${cl ? JSON.stringify(cl.toISOString()) : 'null'};
     const ballots = await getJSON('${u(`/data/ballots/${p.id}.json`)}');
     const early = (meta.parameters && meta.parameters.ballot && meta.parameters.ballot.early_close) || {};
-    const t = await R.tally(${JSON.stringify(p.id)}, ballots, roll, spec, closes, early);
+    const t = await R.tally(${JSON.stringify(p.id)}, ballots, roll, spec, closes, early, ${election ? JSON.stringify(cands) : 'null'});
     const n = roll.filter((c) => c.status === 'active').length;
 
     $('state').textContent = isElection
-      ? t.cast + ' of ' + n + ' ballots cast — ' + (t.open ? 'open' : 'closed; run the tally for the rounds')
+      ? t.cast + ' of ' + n + ' cast, ' + t.quorumNeeded + ' needed — ' +
+        (t.open ? 'open' + (t.winner ? ', leading: ' + t.winner : '')
+          : t.carried ? 'elected ' + t.winner
+          : t.winner ? 'no quorum' : 'no result')
       : t.yes + ' yes, ' + t.no + ' no, ' + t.abstain + ' abstain — ' + t.cast + ' of ' + n + ' cast, ' +
         t.quorumNeeded + ' needed — ' + (t.open ? 'open' : (t.closedEarly ? 'closed early, ' + t.closedEarly + ' — ' : '') + (t.carried ? 'carried' : 'not carried'));
     if (!t.open) $('state').classList.add(t.carried ? 'carried' : 'failed');
@@ -554,6 +562,16 @@ for (const p of C.proposals) {
       $('closebox').hidden = false;
       $('closebtn').href = 'https://github.com/' + meta.repo + '/actions/workflows/close.yml';
     }
+    // art-08/§46/¶2 — the rounds of elimination are published.
+    if (isElection && t.rounds && t.rounds.length) {
+      const box = document.createElement('div');
+      box.innerHTML = '<h2>Rounds</h2><table><thead><tr><th>Round</th><th>Counts</th><th>Eliminated</th></tr></thead><tbody>' +
+        t.rounds.map((r, i) => '<tr><td>' + (i + 1) + '</td><td>' +
+          r.counts.map((c) => c[0] + ': ' + c[1]).join(' · ') + '</td><td class="q">' + (r.eliminated || '—') + '</td></tr>').join('') +
+        '</tbody></table>';
+      $('rows').closest('table').insertAdjacentElement('beforebegin', box);
+    }
+
     $('rows').innerHTML = Object.entries(ballots).map(([id, b]) =>
       '<tr><td>' + id + '</td><td>' + (Array.isArray(b.choice) ? b.choice.join(', ') : b.choice) + '</td><td class="q">' + (b.at || '').slice(0, 10) + '</td></tr>').join('')
       || '<tr><td colspan="3" class="q">None yet.</td></tr>';
@@ -643,7 +661,7 @@ write('office', page('Office', `
 
 const statuteMeta = (st) => st.versions.en || Object.values(st.versions)[0] || {};
 
-write('law', page('Law', `
+write('journal/law', page('Law', `
   <h1>Law in force<span class="sub">One corpus. The Constitution is the highest law and is listed with the rest — art-01/§3/¶1.</span></h1>
   ${true ? `
   <div class="row">
@@ -660,7 +678,7 @@ write('law', page('Law', `
     })),
     ...C.statutes.map((st) => {
       const m = statuteMeta(st);
-      return { href: u(`/law/${st.slug}/`), title: m.title || st.slug, cls: CLASSES[m.class]?.label || m.class || '',
+      return { href: u(`/journal/law/${st.slug}/`), title: m.title || st.slug, cls: CLASSES[m.class]?.label || m.class || '',
         version: m.version || 1, when: isoDate(m.enacted), cite: `stat.${st.slug}`, sortId: st.slug };
     }),
   ].map((r) => `<tr data-title="${esc(r.title)}" data-enacted="${esc(r.when)}" data-class="${esc(r.cls)}" data-id="${esc(r.sortId)}">
@@ -670,7 +688,7 @@ write('law', page('Law', `
       <td class="q">${esc(r.when)}</td>
       <td class="q">${esc(r.cite)}</td></tr>`).join('')}</tbody></table>`
   : '<p class="quiet">Nothing has been enacted yet. A measure that carries becomes law on publication — art-08/§45/¶1.</p>'}`,
-  { on: 'law', script: `
+  { on: 'journal/law', script: `
   let dir = 1, last = null;
   for (const b of document.querySelectorAll('[data-sort]')) b.onclick = () => {
     const k = b.dataset.sort;
@@ -686,8 +704,8 @@ for (const st of C.statutes) {
   const secs = m.sections || [];
   const links = [].concat(m.cites || []);
   const back2 = back.get(`stat.${st.slug}`) || [];
-  write(`law/${st.slug}`, page(m.title || st.slug, `
-    <p class="crumb"><a href="${u('/law/')}">Law</a> · stat.${esc(st.slug)}</p>
+  write(`journal/law/${st.slug}`, page(m.title || st.slug, `
+    <p class="crumb"><a href="${u('/journal/law/')}">Law</a> · stat.${esc(st.slug)}</p>
     <h1>${esc(m.title || st.slug)}<span class="sub">${esc(CLASSES[m.class]?.label || m.class || '')}${m.version ? ' · version ' + m.version : ''}${m.enacted ? ' · in force since ' + esc(isoDate(m.enacted)) : ''}${m.measure ? ' · ' + esc(m.measure) : ''}</span></h1>
     <div class="row">
       <button class="plain" data-copy="stat.${esc(st.slug)}">copy citation</button>
@@ -697,9 +715,9 @@ for (const st of C.statutes) {
     <article class="law">${secs.length ? statuteSections(secs, st.slug) : ''}</article>
     ${links.length ? `<h2>Made under</h2><ul class="list">${links.map((c) => `<li>${link(String(c))}</li>`).join('')}</ul>` : ''}
     ${(m.history || []).length ? `<h2>Earlier versions</h2><ul class="list">${[].concat(m.history).map((h) => `<li class="quiet">${esc(String(h))}</li>`).join('')}</ul>` : ''}
-    ${m.journal ? `<h2>Promulgated</h2><ul class="list"><li><a href="${u(`/journal/${m.journal}/`)}">Journal ${m.journal}</a></li>${m.measure ? `<li><a href="${u(`/assembly/${m.measure}/`)}">${esc(m.measure)}</a></li>` : ''}</ul>` : ''}
+    ${m.journal ? `<h2>Promulgated</h2><ul class="list"><li><a href="${u(`/journal/issues/${m.journal}/`)}">Journal ${m.journal}</a></li>${m.measure ? `<li><a href="${u(`/assembly/${m.measure}/`)}">${esc(m.measure)}</a></li>` : ''}</ul>` : ''}
     ${back2.length ? `<h2>Cited by</h2><ul class="list">${back2.map((l) => `<li><a href="${u(l.href)}">${esc(l.label)}</a><span class="meta">${esc(String(l.at || '').slice(0, 10))}</span></li>`).join('')}</ul>` : ''}`,
-  { on: 'law', narrow: true, script: `
+  { on: 'journal/law', narrow: true, script: `
     for (const b of document.querySelectorAll('[data-copy]')) b.onclick = () => {
       navigator.clipboard.writeText(b.dataset.copy + '  ' + location.href);
       b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy citation', 1200);
@@ -887,7 +905,7 @@ for (const c of CONTRACTS) {
 
 const judges = offs.filter((o) => (o.permissions || []).includes('court.judge'));
 
-write('court', page('Court', `
+write('journal/court', page('Court', `
   <h1>Court<span class="sub">Decides disputes under this Constitution, reviews acts for consistency with it, and construes the text — art-06/§31/¶2.</span></h1>
 
   <h2>The bench</h2>
@@ -899,7 +917,7 @@ write('court', page('Court', `
 
   <h2>Cases</h2>
   <ul class="list">${C.judgments.length ? C.judgments.slice().reverse().map((j) =>
-    `<li><a href="${u(`/court/${j.number}/`)}">${esc(j.title || 'Case ' + j.number)}</a>
+    `<li><a href="${u(`/journal/court/${j.number}/`)}">${esc(j.title || 'Case ' + j.number)}</a>
       <span class="meta">${esc(j.holding || 'undecided')}</span></li>`).join('')
     : '<li class="quiet">No case has been brought.</li>'}</ul>
 
@@ -917,7 +935,7 @@ write('court', page('Court', `
   <label for="cground">Ground</label><textarea id="cground" rows="5"></textarea>
   <div class="row"><button id="cfile" disabled>Prepare the application</button><a id="ccommit" class="button" hidden>Open on GitHub</a></div>
   <div class="out" id="cout" hidden></div>`,
-{ on: 'court', narrow: true, script: IDENT + `
+{ on: 'journal/court', narrow: true, script: IDENT + `
   const resolve = await getJSON('${u('/data/resolve.json')}');
   const next = ${C.judgments.reduce((n, j) => Math.max(n, j.number || 0), 0) + 1};
   const ok = () => { $('cfile').disabled = !(priv && me); };
@@ -949,8 +967,8 @@ write('court', page('Court', `
   };` }));
 
 for (const j of C.judgments) {
-  write(`court/${j.number}`, page(j.title || `Case ${j.number}`, `
-    <p class="crumb"><a href="${u('/court/')}">Court</a> · case ${j.number}</p>
+  write(`journal/court/${j.number}`, page(j.title || `Case ${j.number}`, `
+    <p class="crumb"><a href="${u('/journal/court/')}">Court</a> · case ${j.number}</p>
     <h1>${esc(j.title || 'Case ' + j.number)}<span class="sub">${esc(j.holding ? 'decided ' + isoDate(j.decided) + ' — ' + j.holding : 'undecided')} · filed ${esc(isoDate(j.filed))}</span></h1>
     <table><tbody>
       <tr><td class="q">Applicant</td><td>${esc(j.applicant || '')}</td></tr>
@@ -960,24 +978,35 @@ for (const j of C.judgments) {
     </tbody></table>
     <article class="law">${markdown(j.body)}</article>
     ${[].concat(j.construes || []).length ? `<h2>Provisions construed</h2><ul class="list">${[].concat(j.construes).map((c) => `<li>${link(String(c))}</li>`).join('')}</ul>` : ''}`,
-  { on: 'court', narrow: true }));
+  { on: 'journal/court', narrow: true }));
 }
 
 write('journal', page('Journal', `
+  <h1>Journal<span class="sub">Everything the Republic has published. Publication is promulgation — art-05/§25/¶2.</span></h1>
+  <table><tbody>
+    <tr><td><a href="${u('/journal/constitution/')}">Constitution</a></td><td class="q">${C.constitution.articles.length} articles · the highest law</td></tr>
+    <tr><td><a href="${u('/journal/law/')}">Law</a></td><td class="q">${C.statutes.length} statute${C.statutes.length === 1 ? '' : 's'} in force</td></tr>
+    <tr><td><a href="${u('/journal/court/')}">Court</a></td><td class="q">${C.judgments.length} case${C.judgments.length === 1 ? '' : 's'}</td></tr>
+    <tr><td><a href="${u('/journal/issues/')}">Issues</a></td><td class="q">${C.journal.length} issue${C.journal.length === 1 ? '' : 's'} of the Journal proper</td></tr>
+  </tbody></table>
+  <p class="note">On disk this is one directory: journal/constitution, journal/law, journal/court, journal/issues. The site follows the corpus rather than inventing a second arrangement.</p>`,
+  { on: 'journal/issues', narrow: true }));
+
+write('journal/issues', page('Journal', `
   <h1>Journal<span class="sub">Publication is promulgation — art-05/§25/¶2.</span></h1>
   <ul class="list">${C.journal.slice().reverse().map((j) =>
-    `<li><a href="${u(`/journal/${j.number}/`)}">No. ${j.number} · ${esc(issueTitle(j))}</a><span class="meta">${esc(j.date)}</span></li>`).join('')
-    || '<li class="quiet">No issues yet.</li>'}</ul>`, { on: 'journal', narrow: true }));
+    `<li><a href="${u(`/journal/issues/${j.number}/`)}">No. ${j.number} · ${esc(issueTitle(j))}</a><span class="meta">${esc(j.date)}</span></li>`).join('')
+    || '<li class="quiet">No issues yet.</li>'}</ul>`, { on: 'journal/issues', narrow: true }));
 
 for (const j of C.journal) {
   const links = [].concat(j.cites || []);
-  write(`journal/${j.number}`, page(issueTitle(j), `
-    <p class="crumb"><a href="${u('/journal/')}">Journal</a> · No. ${j.number}</p>
+  write(`journal/issues/${j.number}`, page(issueTitle(j), `
+    <p class="crumb"><a href="${u('/journal/issues/')}">Journal</a> · No. ${j.number}</p>
     <h1>${esc(issueTitle(j))}<span class="sub">No. ${j.number} · ${esc(j.date)}${j.measure ? ' · ' + esc(j.measure) : ''}</span></h1>
     <article class="law">${markdown(j.body)}</article>
     ${links.length ? `<h2>Made under</h2><ul class="list">${links.map((c) => `<li>${link(String(c))}</li>`).join('')}</ul>` : ''}
     ${j.measure ? `<h2>The measure</h2><ul class="list"><li><a href="${u(`/assembly/${j.measure}/`)}">${esc(j.measure)}</a></li></ul>` : ''}`,
-  { on: 'journal', narrow: true }));
+  { on: 'journal/issues', narrow: true }));
 }
 
 write('register', page('Register', `
@@ -1049,8 +1078,48 @@ for (const e of ents) {
       <tr><td class="q">Organs</td><td>${(e.organs || []).map((o) => `${esc(o.name)}: ${(o.held_by || []).join(', ')}`).join('<br>')}</td></tr>
       <tr><td class="q">Members</td><td>${(e.members || []).join(', ')}</td></tr>
     </tbody></table>
-    ${secs.length ? `<h2>Charter</h2><article class="law">${sections(secs, null)}</article>` : ''}`,
-  { on: 'register', narrow: true }));
+    ${secs.length ? `<h2>Charter</h2><article class="law">${sections(secs, null)}</article>` : ''}
+
+    ${P.entities.types[e.type]?.may_issue_instruments ? `
+    <h2>Issue a share</h2>
+    <p class="quiet">A company may issue an instrument representing a share in itself — art-09/§51/¶1. Only an organ of ${esc(e.id)} may do so.</p>
+    <p id="msg" class="msg quiet"></p>
+    <label for="icls">Class</label><input type="text" id="icls" value="ordinary">
+    <label for="iqty">Quantity</label><input type="text" id="iqty" inputmode="numeric">
+    <label for="ito">To</label><input type="text" id="ito" placeholder="${esc(e.id)}">
+    <div class="row"><button id="iissue" disabled>Prepare the issue</button><a id="icommit" class="button" hidden>Open on GitHub</a></div>
+    <div class="out" id="iout" hidden></div>`
+    : `<p class="note">A ${esc(e.type)} may not issue instruments — art-04/§20/¶3. Only a company may.</p>`}
+
+    <h2>Holdings</h2>
+    <table><thead><tr><th>Instrument</th><th>Issued</th></tr></thead><tbody>${
+      instrumentList.filter(([, m]) => m.issuer === e.id).map(([i, m]) => `<tr><td>${esc(i)}</td><td class="q">${m.issued}</td></tr>`).join('')
+      || '<tr><td colspan="2" class="q">None issued.</td></tr>'}</tbody></table>`,
+  { on: 'register', narrow: true, script: P.entities.types[e.type]?.may_issue_instruments ? IDENT + `
+    const organs = ${JSON.stringify(e.organs || [])};
+    const ok = () => { $('iissue').disabled = !(priv && me && organs.some((o) => (o.held_by || []).includes(me))); };
+    document.addEventListener('identity', ok); ok();
+    $('iissue').onclick = () => {
+      try {
+        if (!organs.some((o) => (o.held_by || []).includes(me))) throw new Error('only an organ of ${e.id} may issue — art-04/§21/¶2');
+        const q = Number($('iqty').value);
+        if (!q || q <= 0) throw new Error('give a quantity');
+        const cls = ($('icls').value || 'ordinary').trim();
+        const to = ($('ito').value || ${JSON.stringify(e.id)}).trim();
+        const body = { kind: 'instrument-issue', instrument: ${JSON.stringify(e.id)} + ':' + cls,
+          issuer: ${JSON.stringify(e.id)}, class: cls, quantity: q, to, by: me,
+          at: new Date().toISOString(),
+          salt: [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('') };
+        R.sign(R.canonical(body), priv, { namespace: 'republic' }).then((sig) => {
+          body.signature = sig;
+          $('iout').hidden = false; $('iout').textContent = JSON.stringify(body, null, 2);
+          const name = body.at.replace(/[:.]/g, '-') + '-' + body.instrument.replace(':', '-');
+          $('icommit').href = R.commitUrl(meta.repo, meta.branch, 'transfers/' + name + '.json', JSON.stringify(body, null, 2), 'issue ' + body.instrument);
+          $('icommit').hidden = false;
+          $('msg').className = 'msg'; $('msg').textContent = 'Signed. Commit it; the settle workflow records the issue.';
+        });
+      } catch (e) { problem('could not issue', e); }
+    };` : '' }));
 }
 
 function parseCharter(body) {

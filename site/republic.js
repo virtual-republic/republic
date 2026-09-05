@@ -144,7 +144,30 @@ export async function makeBallot(proposal, choice, privateKey) {
 
 // Count a measure in the browser, from the published ballots. Same arithmetic
 // as tools/tally.js, so the running total a citizen sees is the real one.
-export async function tally(measure, ballots, roll, spec, closes, early = {}) {
+// art-08/§46/¶1 — the single transferable vote in its instant-runoff form.
+// The page must reach the same verdict as tools/tally.js, or a citizen reads one
+// result on the site and another in the register.
+export function instantRunoff(entries, candidates) {
+  const active = new Set(candidates.length ? candidates : entries.flatMap((b) => [].concat(b.choice)));
+  const rounds = [];
+  while (active.size > 1) {
+    const counts = new Map([...active].map((c) => [c, 0]));
+    let total = 0;
+    for (const b of entries) {
+      const top = [].concat(b.choice).find((c) => active.has(c));
+      if (top) { counts.set(top, counts.get(top) + 1); total++; }
+    }
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    if (!total) return { rounds, winner: null };
+    if (sorted[0][1] > total / 2) { rounds.push({ counts: sorted, eliminated: null }); return { rounds, winner: sorted[0][0] }; }
+    const last = sorted[sorted.length - 1][0];
+    rounds.push({ counts: sorted, eliminated: last });
+    active.delete(last);
+  }
+  return { rounds, winner: [...active][0] ?? null };
+}
+
+export async function tally(measure, ballots, roll, spec, closes, early = {}, candidates = null) {
   const keys = new Map();
   for (const c of roll) for (const k of c.keys || []) keys.set(k.split(/\s+/)[1], c.id);
 
@@ -158,8 +181,10 @@ export async function tally(measure, ballots, roll, spec, closes, early = {}) {
     if (!held || (b.at && held.at && new Date(b.at) > new Date(held.at))) counted.set(citizenId, b);
   }
 
+  const entries = [...counted.values()];
+  const isElection = Array.isArray(candidates);
   const t = { yes: 0, no: 0, abstain: 0 };
-  for (const b of counted.values()) if (t[b.choice] !== undefined) t[b.choice]++;
+  for (const b of entries) if (typeof b.choice === 'string' && t[b.choice] !== undefined) t[b.choice]++;
   const cast = counted.size;
   const decisive = t.yes + t.no;
   const quorumNeeded = Math.ceil(spec.quorum * roll.filter((c) => c.status === 'active').length);
@@ -184,10 +209,21 @@ export async function tally(measure, ballots, roll, spec, closes, early = {}) {
   }
 
   const open = byCalendar && !closedEarly;
+
+  if (isElection) {
+    const { rounds, winner } = instantRunoff(entries, candidates);
+    return {
+      ...t, cast, electorate: N, remaining, quorumNeeded, quorumMet: cast >= quorumNeeded,
+      open, closedEarly, rounds, winner, election: true,
+      carried: !open && !!winner && cast >= quorumNeeded,
+      rejected,
+    };
+  }
+
   return {
     ...t, cast, electorate: N, remaining, quorumNeeded, quorumMet: cast >= quorumNeeded,
     share, threshold: spec.threshold, thresholdMet: share >= spec.threshold,
-    open, closedEarly,
+    open, closedEarly, election: false,
     carried: cast >= quorumNeeded && share >= spec.threshold && !open,
     rejected,
   };

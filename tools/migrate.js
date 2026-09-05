@@ -56,5 +56,39 @@ if (!dry) {
   }
 }
 
+// art-06/§28/¶1 — the offices of the Republic are the Registrar, the Keeper of
+// the Journal, the Treasurer, the Auditor, and the Judges of the Court. An
+// office missing from the register is one nobody can stand for.
+const OFFICES = [
+  ['registrar', 'Registrar', ['register.admit', 'register.object', 'entity.register']],
+  ['keeper', 'Keeper of the Journal', ['journal.publish', 'checkpoint.sign']],
+  ['treasurer', 'Treasurer', ['value.issue', 'treasury.disburse']],
+  ['auditor', 'Auditor', ['audit.report']],
+  ['judge', 'Judge of the Court', ['court.halt', 'court.void', 'court.judge']],
+];
+
+const offFile = path.join(ROOT, 'register/offices.yml');
+if (fs.existsSync(offFile)) {
+  let src = fs.readFileSync(offFile, 'utf8');
+  const missing = OFFICES.filter(([id]) => !new RegExp(`- id: ${id}\\b`).test(src));
+  if (missing.length) {
+    console.log(`\nOffices missing from the register (art-06/§28/¶1): ${missing.map(([i]) => i).join(', ')}`);
+    if (!dry) {
+      const today = new Date().toISOString().slice(0, 10);
+      const ends = new Date(); ends.setFullYear(ends.getFullYear() + 1);
+      const holder = (src.match(/holder:\s*(\S+)/) || [])[1] || 'c-0001';
+      src = src.replace(/\s*$/, '\n') + missing.map(([id, title, perms]) => [
+        `  - id: ${id}`, `    title: ${title}`, `    holder: ${holder}`, `    since: ${today}`,
+        `    term_ends: ${ends.toISOString().slice(0, 10)}`, `    established_under: art-06/§28/¶1`,
+        `    permissions: [${perms.join(', ')}]`, '',
+      ].join('\n')).join('');
+      fs.writeFileSync(offFile, src);
+      console.log(`  added, held by ${holder} until an election — art-06/§29/¶4`);
+    }
+  } else {
+    console.log('\nEvery office of art-06/§28/¶1 is on the register.');
+  }
+}
+
 console.log(`\n${n} move(s)${dry ? ' (dry run)' : ''}.`);
 if (n && !dry) console.log('Now: npm test && npm run verify && npm run build');

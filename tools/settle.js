@@ -33,6 +33,20 @@ for (const t of transfers) {
   const acct = accounts(ROOT);
   const state = ledgerState(ROOT);
 
+  // art-09/§51/¶1 — an entity issues a share in itself, through an organ.
+  if (t.kind === 'instrument-issue') {
+    const types = P.entities.types;
+    const ent = acct.get(t.issuer);
+    if (!ent || ent.kind !== 'entity') { say(false, t.file, `${t.issuer} is not an entity`); continue; }
+    if (!types[ent.type]?.may_issue_instruments) { say(false, t.file, `a ${ent.type} may not issue instruments (art-04/§20/¶3)`); continue; }
+    if (!mayActFor(ROOT, t.by, t.issuer)) { say(false, t.file, `${t.by} is not an organ of ${t.issuer}`); continue; }
+    if (!dry) append(ROOT, { at: t.at, author: t.by, entity: t.issuer, kind: 'instrument.issued', provision: 'art-09/§51/¶1',
+      payload: { instrument: t.instrument, issuer: t.issuer, class: t.class, quantity: t.quantity, to: t.to } });
+    say(true, `${t.issuer} issued ${t.quantity} × ${t.instrument} to ${t.to}`);
+    done(t.path);
+    continue;
+  }
+
   if (!acct.has(t.from) || !acct.has(t.to)) { say(false, t.file, 'unknown account'); continue; }
   if (!mayActFor(ROOT, t.by, t.from)) { say(false, t.file, `${t.by} may not act for ${t.from} (art-02/§12/¶3)`); continue; }
 
