@@ -747,6 +747,7 @@ function statuteSections(secs, slugId) {
 // ---- value: accounts, instruments, exchange, contracts ---------------------
 
 const holdingsOf = (a) => [...(V.holdings.get(a) || new Map())].filter(([, q]) => q > 0);
+const UNIT_ = null;
 const instrumentList = [...V.instruments.entries()];
 
 write('treasury', page('Value', `
@@ -824,8 +825,59 @@ write('treasury', page('Value', `
     } catch (e) { problem('could not sign', e); }
   };` }));
 
+// Pending orders are files; they clear at the next auction. Publishing them is
+// art-09/§52/¶3 — every order, every clearing, and every price is published.
+const pendingOrders = (() => {
+  const d = path.join(ROOT, 'orders');
+  if (!fs.existsSync(d)) return [];
+  return fs.readdirSync(d).filter((f) => f.endsWith('.json') && !f.startsWith('_'))
+    .map((f) => JSON.parse(fs.readFileSync(path.join(d, f), 'utf8')));
+})();
+
+const bookFor = (inst) => {
+  const os = pendingOrders.filter((o) => o.instrument === inst);
+  return {
+    bids: os.filter((o) => o.side === 'buy').sort((a, b) => b.price - a.price),
+    asks: os.filter((o) => o.side === 'sell').sort((a, b) => a.price - b.price),
+  };
+};
+
+// The price the next auction would clear at, computed the same way settle does.
+const indicative = (inst) => {
+  const { bids, asks } = bookFor(inst);
+  if (!bids.length || !asks.length) return null;
+  let best = null;
+  for (const p of [...new Set([...bids, ...asks].map((o) => o.price))].sort((a, b) => a - b)) {
+    const demand = bids.filter((o) => o.price >= p).reduce((s, o) => s + o.quantity, 0);
+    const supply = asks.filter((o) => o.price <= p).reduce((s, o) => s + o.quantity, 0);
+    const volume = Math.min(demand, supply);
+    if (!best || volume > best.volume) best = { price: p, volume };
+  }
+  return best && best.volume ? best : null;
+};
+
+const trades = events.filter((e) => e.kind === 'order.matched');
+
 write('exchange', page('Exchange', `
   <h1>Exchange<span class="sub">Cleared by periodic auction at a uniform price, with no priority to the order of arrival — art-09/§52/¶2.</span></h1>
+
+  ${instrumentList.length ? instrumentList.map(([inst, m]) => {
+    const { bids, asks } = bookFor(inst);
+    const ind = indicative(inst);
+    const last = trades.filter((t) => t.payload.instrument === inst).slice(-1)[0];
+    return `<h2>${esc(inst)}</h2>
+    <table><tbody>
+      <tr><td class="q">Issuer</td><td><a href="${u(`/entities/${m.issuer}/`)}">${esc(m.issuer)}</a></td></tr>
+      <tr><td class="q">Issued</td><td>${m.issued}</td></tr>
+      <tr><td class="q">Last price</td><td>${last ? last.payload.price + ' ' + esc(UNIT) : '—'}</td></tr>
+      <tr><td class="q">Next auction would clear</td><td>${ind ? `${ind.volume} at ${ind.price} ${esc(UNIT)}` : 'nothing — no crossing orders'}</td></tr>
+    </tbody></table>
+    <table><thead><tr><th>Bids</th><th>Asks</th></tr></thead><tbody><tr>
+      <td>${bids.length ? bids.map((o) => `${o.quantity} @ ${o.price} <span class="q">${esc(o.account)}</span>`).join('<br>') : '<span class="q">none</span>'}</td>
+      <td>${asks.length ? asks.map((o) => `${o.quantity} @ ${o.price} <span class="q">${esc(o.account)}</span>`).join('<br>') : '<span class="q">none</span>'}</td>
+    </tr></tbody></table>`;
+  }).join('') : '<p class="quiet">No instrument has been issued, so there is nothing to trade. A company may issue a share in itself — art-09/§51/¶1.</p>'}
+
   ${instrumentList.length ? `
   <h2>Place an order</h2>
   <p id="msg" class="msg quiet"></p>
@@ -835,14 +887,15 @@ write('exchange', page('Exchange', `
   <label for="oqty">Quantity</label><input type="text" id="oqty" inputmode="numeric">
   <label for="oprice">Price in ${esc(UNIT)}s</label><input type="text" id="oprice" inputmode="numeric">
   <div class="row"><button id="osign" disabled>Sign order</button><a id="ocommit" class="button" hidden>Open on GitHub</a></div>
-  <div class="out" id="oout" hidden></div>`
-  : '<p class="quiet">No instrument has been issued, so there is nothing to trade.</p>'}
+  <div class="out" id="oout" hidden></div>
+  <p class="note">An order does not execute on arrival. It joins the book and clears at the next auction, at one price for everyone — art-09/§52/¶2.</p>` : ''}
 
   <h2>Trades</h2>
-  <table><thead><tr><th>Instrument</th><th>Seller</th><th>Buyer</th><th>Quantity</th><th>Price</th></tr></thead>
-  <tbody>${events.filter((e) => e.kind === 'order.matched').reverse().map((e) => `<tr>
+  <table><thead><tr><th>Instrument</th><th>Seller</th><th>Buyer</th><th>Quantity</th><th>Price</th><th>When</th></tr></thead>
+  <tbody>${trades.slice().reverse().map((e) => `<tr>
     <td>${esc(e.payload.instrument)}</td><td class="q">${esc(e.payload.seller)}</td><td class="q">${esc(e.payload.buyer)}</td>
-    <td>${e.payload.quantity}</td><td>${e.payload.price}</td></tr>`).join('') || '<tr><td colspan="5" class="q">No trades yet.</td></tr>'}</tbody></table>`,
+    <td>${e.payload.quantity}</td><td>${e.payload.price}</td><td class="q">${esc(e.at.slice(0, 10))}</td></tr>`).join('')
+    || '<tr><td colspan="6" class="q">No trades yet.</td></tr>'}</tbody></table>`,
 { on: 'treasury', script: IDENT + `
   const accts = await getJSON('${u('/data/accounts.json')}');
   const mine = () => accts.filter((a) => a.id === me || (a.organs || []).some((o) => (o.held_by || []).includes(me)));
@@ -858,8 +911,8 @@ write('exchange', page('Exchange', `
       const q = Number($('oqty').value), pr = Number($('oprice').value);
       if (!q || !pr) throw new Error('give a quantity and a price');
       const body = { kind: 'order', side: $('oside').value, instrument: $('oinst').value,
-        quantity: q, price: pr, account: $('oacct').value, by: me,
-        at: new Date().toISOString(), salt: [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('') };
+        quantity: q, price: pr, account: $('oacct').value, by: me, at: new Date().toISOString(),
+        salt: [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('') };
       body.signature = await R.sign(R.canonical(body), priv, { namespace: 'republic' });
       $('oout').hidden = false; $('oout').textContent = JSON.stringify(body, null, 2);
       const name = body.at.replace(/[:.]/g, '-') + '-' + body.account + '-' + body.side;
@@ -1090,55 +1143,159 @@ write('register', page('Register', `
 
 for (const e of ents) {
   const secs = e.charterBody ? parseCharter(e.charterBody) : [];
+  const type = P.entities.types[e.type] || {};
+  const mine = instrumentList.filter(([, m]) => m.issuer === e.id);
+  const bal = V.balances.get(e.id) || 0;
+  const holds = holdingsOf(e.id);
+
+  fs.mkdirSync(path.join(OUT, 'data/charters'), { recursive: true });
+  if (e.charterBody) fs.writeFileSync(path.join(OUT, `data/charters/${e.id}.md`), e.charterBody);
+
   write(`entities/${e.id}`, page(nameOf(e), `
     <p class="crumb"><a href="${u('/register/')}">Register</a> · ${esc(e.id)}</p>
-    <h1>${esc(nameOf(e))}<span class="sub">${esc(e.type)} · formed ${esc(isoDate(e.formed))} under art-04/§19/¶1</span></h1>
+    <h1>${esc(nameOf(e))}<span class="sub">${esc(type.label || e.type)} · formed ${esc(isoDate(e.formed))} under ${esc(e.formed_under || 'art-04/§19/¶1')}${e.status !== 'active' ? ' · ' + esc(e.status) : ''}</span></h1>
+
     <table><tbody>
-      <tr><td class="q">Organs</td><td>${(e.organs || []).map((o) => `${esc(o.name)}: ${(o.held_by || []).join(', ')}`).join('<br>')}</td></tr>
-      <tr><td class="q">Members</td><td>${(e.members || []).join(', ')}</td></tr>
+      <tr><td class="q">Organs</td><td>${(e.organs || []).map((o) => `${esc(o.name)}: ${(o.held_by || []).join(', ')}`).join('<br>') || '—'}</td></tr>
+      <tr><td class="q">Members</td><td>${(e.members || []).join(', ') || '—'}</td></tr>
+      <tr><td class="q">Holds</td><td>${bal} ${esc(UNIT)}${holds.length ? '<br>' + holds.map(([i, q]) => `${q} × ${esc(i)}`).join('<br>') : ''}</td></tr>
+      <tr><td class="q">May issue shares</td><td class="q">${type.may_issue_instruments ? 'yes — art-09/§51/¶1' : 'no — art-04/§20/¶3'}</td></tr>
     </tbody></table>
+
     ${secs.length ? `<h2>Charter</h2><article class="law">${sections(secs, null)}</article>` : ''}
 
-    ${P.entities.types[e.type]?.may_issue_instruments ? `
-    <h2>Issue a share</h2>
-    <p class="quiet">A company may issue an instrument representing a share in itself — art-09/§51/¶1. Only an organ of ${esc(e.id)} may do so.</p>
-    <p id="msg" class="msg quiet"></p>
-    <label for="icls">Class</label><input type="text" id="icls" value="ordinary">
-    <label for="iqty">Quantity</label><input type="text" id="iqty" inputmode="numeric">
-    <label for="ito">To</label><input type="text" id="ito" placeholder="${esc(e.id)}">
-    <div class="row"><button id="iissue" disabled>Prepare the issue</button><a id="icommit" class="button" hidden>Open on GitHub</a></div>
-    <div class="out" id="iout" hidden></div>`
-    : `<p class="note">A ${esc(e.type)} may not issue instruments — art-04/§20/¶3. Only a company may.</p>`}
+    ${mine.length ? `<h2>Instruments</h2>
+    <table><thead><tr><th>Instrument</th><th>Issued</th></tr></thead>
+    <tbody>${mine.map(([i, m]) => `<tr><td>${esc(i)}</td><td class="q">${m.issued}</td></tr>`).join('')}</tbody></table>` : ''}
 
-    <h2>Holdings</h2>
-    <table><thead><tr><th>Instrument</th><th>Issued</th></tr></thead><tbody>${
-      instrumentList.filter(([, m]) => m.issuer === e.id).map(([i, m]) => `<tr><td>${esc(i)}</td><td class="q">${m.issued}</td></tr>`).join('')
-      || '<tr><td colspan="2" class="q">None issued.</td></tr>'}</tbody></table>`,
-  { on: 'register', narrow: true, script: P.entities.types[e.type]?.may_issue_instruments ? IDENT + `
+    <hr class="rule">
+    <h2>Manage</h2>
+    <p id="msg" class="msg quiet">Load a key that is an organ of ${esc(e.id)} to act for it.</p>
+    <div id="console" hidden>
+
+      ${type.may_issue_instruments ? `
+      <h3>Issue a share</h3>
+      <label for="icls">Class</label><input type="text" id="icls" value="ordinary">
+      <label for="iqty">Quantity</label><input type="text" id="iqty" inputmode="numeric">
+      <label for="ito">To</label><input type="text" id="ito" value="${esc(e.id)}">
+      <div class="row"><button data-act="issue">Sign</button></div>` : ''}
+
+      <h3>Transfer</h3>
+      <label for="twhat">What</label><select id="twhat"><option value="unit">${esc(UNIT)}s</option>${holds.map(([i]) => `<option value="${esc(i)}">${esc(i)}</option>`).join('')}</select>
+      <label for="tto">To</label><select id="tto">${[...ACCTS.keys()].filter((x) => x !== e.id).map((x) => `<option>${esc(x)}</option>`).join('')}</select>
+      <label for="tamt">Amount</label><input type="text" id="tamt" inputmode="numeric">
+      <div class="row"><button data-act="transfer">Sign</button></div>
+
+      <h3>Trade</h3>
+      <label for="oside">Side</label><select id="oside"><option value="sell">sell</option><option value="buy">buy</option></select>
+      <label for="oinst">Instrument</label><select id="oinst">${instrumentList.map(([i]) => `<option>${esc(i)}</option>`).join('') || '<option value="">none issued</option>'}</select>
+      <label for="oqty">Quantity</label><input type="text" id="oqty" inputmode="numeric">
+      <label for="oprice">Price</label><input type="text" id="oprice" inputmode="numeric">
+      <div class="row"><button data-act="order">Sign</button></div>
+
+      <h3>Members</h3>
+      <label for="mwho">Citizenships, comma separated</label><input type="text" id="mwho" placeholder="c-0007, c-0008">
+      <div class="row"><button data-act="admit">Admit</button><button data-act="remove">Remove</button></div>
+
+      <h3>Organs</h3>
+      <p class="quiet">art-04/§21/¶2 — an organ holds only the authority the charter confers.</p>
+      <label for="oset">role=citizen, separated by commas; several holders with /</label>
+      <input type="text" id="oset" value="${esc((e.organs || []).map((o) => `${o.name}=${(o.held_by || []).join('/')}`).join(', '))}">
+      <div class="row"><button data-act="organs">Sign</button></div>
+
+      <h3>Charter</h3>
+      <p class="quiet">art-04/§21/¶3 — a charter must not be inconsistent with the Constitution.</p>
+      <textarea id="ctext" rows="14"></textarea>
+      <div class="row"><button data-act="charter">Sign</button></div>
+
+      <h3>Dissolve</h3>
+      <p class="quiet">art-04/§23/¶2 — on dissolution its holdings pass as the charter provides, and failing that to the Treasury.</p>
+      <div class="row"><button data-act="dissolve">Sign dissolution</button></div>
+
+      <div class="out" id="out" hidden></div>
+      <div class="row"><a id="commit" class="button" hidden>Open on GitHub</a></div>
+    </div>`,
+  { on: 'register', narrow: true, script: IDENT + `
+    const ENTITY = ${JSON.stringify(e.id)};
     const organs = ${JSON.stringify(e.organs || [])};
-    const ok = () => { $('iissue').disabled = !(priv && me && organs.some((o) => (o.held_by || []).includes(me))); };
-    document.addEventListener('identity', ok); ok();
-    $('iissue').onclick = () => {
+    const isOrgan = () => organs.some((o) => (o.held_by || []).includes(me));
+    function gate() {
+      const ok = priv && me && isOrgan();
+      $('console').hidden = !ok;
+      $('msg').textContent = ok ? 'Acting for ' + ENTITY + ' as ' + me + '.'
+        : me ? me + ' is not an organ of ' + ENTITY + ' — art-04/§21/¶2.'
+        : 'Load a key that is an organ of ' + ENTITY + ' to act for it.';
+      $('msg').className = 'msg' + (me && !isOrgan() ? ' bad' : '');
+    }
+    document.addEventListener('identity', gate); gate();
+
+    try { $('ctext').value = await (await fetch('${u(`/data/charters/${e.id}.md`)}')).text(); } catch {}
+
+    const rand = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    const num = (id) => { const v = Number($(id).value); if (!v || v <= 0) throw new Error('give a positive number'); return v; };
+
+    async function offer(body, dir, note) {
+      body.signature = await R.sign(R.canonical(body), priv, { namespace: 'republic' });
+      $('out').hidden = false; $('out').textContent = JSON.stringify(body, null, 2);
+      const name = body.at.replace(/[:.]/g, '-') + '-' + ENTITY + '-' + (body.kind || 'act').replace(/\\./g, '-');
+      $('commit').href = R.commitUrl(meta.repo, meta.branch, dir + '/' + name + '.json', JSON.stringify(body, null, 2), note);
+      $('commit').hidden = false;
+      $('msg').className = 'msg'; $('msg').textContent = 'Signed. Commit it; the settle workflow applies it.';
+    }
+
+    for (const b of document.querySelectorAll('[data-act]')) b.onclick = async () => {
       try {
-        if (!organs.some((o) => (o.held_by || []).includes(me))) throw new Error('only an organ of ${e.id} may issue — art-04/§21/¶2');
-        const q = Number($('iqty').value);
-        if (!q || q <= 0) throw new Error('give a quantity');
-        const cls = ($('icls').value || 'ordinary').trim();
-        const to = ($('ito').value || ${JSON.stringify(e.id)}).trim();
-        const body = { kind: 'instrument-issue', instrument: ${JSON.stringify(e.id)} + ':' + cls,
-          issuer: ${JSON.stringify(e.id)}, class: cls, quantity: q, to, by: me,
-          at: new Date().toISOString(),
-          salt: [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('') };
-        R.sign(R.canonical(body), priv, { namespace: 'republic' }).then((sig) => {
-          body.signature = sig;
-          $('iout').hidden = false; $('iout').textContent = JSON.stringify(body, null, 2);
-          const name = body.at.replace(/[:.]/g, '-') + '-' + body.instrument.replace(':', '-');
-          $('icommit').href = R.commitUrl(meta.repo, meta.branch, 'transfers/' + name + '.json', JSON.stringify(body, null, 2), 'issue ' + body.instrument);
-          $('icommit').hidden = false;
-          $('msg').className = 'msg'; $('msg').textContent = 'Signed. Commit it; the settle workflow records the issue.';
-        });
-      } catch (e) { problem('could not issue', e); }
-    };` : '' }));
+        if (!isOrgan()) throw new Error('you are not an organ of ' + ENTITY);
+        const at = new Date().toISOString();
+        const base = { entity: ENTITY, by: me, at, salt: rand(8) };
+        switch (b.dataset.act) {
+          case 'issue': {
+            const cls = ($('icls').value || 'ordinary').trim();
+            await offer({ kind: 'instrument-issue', instrument: ENTITY + ':' + cls, issuer: ENTITY, class: cls,
+              quantity: num('iqty'), to: ($('ito').value || ENTITY).trim(), by: me, at, salt: rand(8) },
+              'transfers', 'issue ' + ENTITY + ':' + cls);
+            break;
+          }
+          case 'transfer': {
+            const what = $('twhat').value, n = num('tamt');
+            await offer({ kind: what === 'unit' ? 'transfer' : 'instrument-transfer', from: ENTITY, to: $('tto').value, by: me,
+              ...(what === 'unit' ? { amount: n } : { instrument: what, quantity: n }), at, salt: rand(12) },
+              'transfers', 'transfer from ' + ENTITY);
+            break;
+          }
+          case 'order': {
+            await offer({ kind: 'order', side: $('oside').value, instrument: $('oinst').value,
+              quantity: num('oqty'), price: num('oprice'), account: ENTITY, by: me, at, salt: rand(8) },
+              'orders', $('oside').value + ' ' + $('oinst').value);
+            break;
+          }
+          case 'admit':
+          case 'remove': {
+            const who = $('mwho').value.split(',').map((x) => x.trim()).filter(Boolean);
+            if (!who.length) throw new Error('name at least one citizenship');
+            await offer({ kind: b.dataset.act === 'admit' ? 'member.admit' : 'member.remove', members: who, ...base },
+              'entity-acts', b.dataset.act + ' ' + who.join(', '));
+            break;
+          }
+          case 'organs': {
+            const organsNew = $('oset').value.split(',').map((x) => {
+              const [name, holders] = x.split('=');
+              return { name: (name || '').trim(), held_by: (holders || '').split('/').map((h) => h.trim()).filter(Boolean) };
+            }).filter((o) => o.name);
+            if (!organsNew.length) throw new Error('give at least one organ');
+            await offer({ kind: 'organ.set', organs: organsNew, ...base }, 'entity-acts', 'organs of ' + ENTITY);
+            break;
+          }
+          case 'charter':
+            await offer({ kind: 'charter.amend', text: $('ctext').value, ...base }, 'entity-acts', 'charter of ' + ENTITY);
+            break;
+          case 'dissolve':
+            if (!confirm('Dissolve ' + ENTITY + '? Its holdings pass as the charter provides, and failing that to the Treasury.')) return;
+            await offer({ kind: 'entity.dissolve', ...base }, 'entity-acts', 'dissolve ' + ENTITY);
+            break;
+        }
+      } catch (err) { problem('could not sign', err); }
+    };` }));
 }
 
 function parseCharter(body) {

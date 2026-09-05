@@ -38,6 +38,7 @@ const RULES = [
   { pattern: /^transfers\//,                        class: null, why: 'a signed transfer, settled by the workflow (art-09/§50/¶2)' },
   { pattern: /^orders\//,                           class: null, why: 'an order on the exchange (art-09/§52/¶3)' },
   { pattern: /^settled\//,                          class: null, why: 'settled instruments' },
+  { pattern: /^entity-acts\//,                      class: null, why: 'an entity acting through its organs (art-04/§21/¶2)' },
   { pattern: /^contracts\//,                        class: null, why: 'a contract between parties, not an act of the Assembly' },
   { pattern: /^charters\//,                         class: null, why: 'an entity charter is the entity\u2019s own instrument (art-04/§21/¶1)' },
   { pattern: /^(README|SETUP|samples)/,             class: null, why: 'documentation' },

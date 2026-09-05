@@ -16,6 +16,7 @@ import { canonical, sha256 } from './lib/events.js';
 import { sign as sshsign } from './lib/sshsig.js';
 import { accounts, mayActFor, contracts, contractComplete } from './lib/value.js';
 import { params } from './lib/params.js';
+import { readKey } from './lib/key.js';
 
 const ROOT = process.cwd();
 const cmd = process.argv[2];
@@ -94,13 +95,13 @@ if (cmd === 'sign') {
   const party = [].concat(c.parties || []).find((p) => mayActFor(ROOT, by, p));
   if (!party) { console.error(`${by} is not a party to ${id} and acts for none of them.`); process.exit(1); }
 
-  const key = `private/${by}.pem`;
-  if (!fs.existsSync(key)) { console.error(`no key at ${key}`); process.exit(2); }
+  let material;
+  try { material = readKey(ROOT, by); } catch (e) { console.error(e.message); process.exit(2); }
 
   // The signature covers the document as it stands — art-04 style: sign the text.
   const text = fs.readFileSync(path.join(ROOT, c.file), 'utf8');
   const body = { kind: 'contract-signature', contract: id, party, by, document: sha256(text), at: new Date().toISOString(), salt: crypto.randomBytes(8).toString('hex') };
-  body.signature = sshsign(canonical(body), fs.readFileSync(key, 'utf8'), { namespace: 'republic' });
+  body.signature = sshsign(canonical(body), material, { namespace: 'republic' });
 
   fs.mkdirSync(path.join(DIR, id), { recursive: true });
   fs.writeFileSync(path.join(DIR, id, `${party}.json`), JSON.stringify(body, null, 2) + '\n');

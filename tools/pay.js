@@ -15,6 +15,7 @@ import { canonical } from './lib/events.js';
 import { sign } from './lib/sshsig.js';
 import { accounts, mayActFor, ledgerState, TREASURY } from './lib/value.js';
 import { params } from './lib/params.js';
+import { readKey } from './lib/key.js';
 
 const ROOT = process.cwd();
 const a = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i === -1 ? d : process.argv[i + 1]; };
@@ -46,8 +47,8 @@ if (amount != null) {
   if (held < quantity) { console.error(`${from} holds ${held} of ${instrument}, not ${quantity}.`); process.exit(1); }
 }
 
-const key = `private/${by}.pem`;
-if (!fs.existsSync(key)) { console.error(`no key at ${key}`); process.exit(2); }
+let material;
+try { material = readKey(ROOT, by); } catch (e) { console.error(e.message); process.exit(2); }
 
 const body = {
   kind: amount != null ? 'transfer' : 'instrument-transfer',
@@ -57,7 +58,7 @@ const body = {
   at: new Date().toISOString(),
   salt: crypto.randomBytes(12).toString('hex'),
 };
-body.signature = sign(canonical(body), fs.readFileSync(key, 'utf8'), { namespace: 'republic' });
+body.signature = sign(canonical(body), material, { namespace: 'republic' });
 
 fs.mkdirSync(path.join(ROOT, 'transfers'), { recursive: true });
 const id = `${body.at.replace(/[:.]/g, '-')}-${from}-${to}`;

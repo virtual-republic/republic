@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 import { canonical } from './lib/events.js';
 import { sign } from './lib/sshsig.js';
 import { accounts, mayActFor, ledgerState } from './lib/value.js';
+import { readKey } from './lib/key.js';
 
 const ROOT = process.cwd();
 const a = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i === -1 ? d : process.argv[i + 1]; };
@@ -39,7 +40,7 @@ if (side === 'sell') {
 
 const body = { kind: 'order', side, instrument, quantity, price, account, by,
   at: new Date().toISOString(), salt: crypto.randomBytes(8).toString('hex') };
-body.signature = sign(canonical(body), fs.readFileSync(`private/${by}.pem`, 'utf8'), { namespace: 'republic' });
+body.signature = sign(canonical(body), readKey(ROOT, by), { namespace: 'republic' });
 
 fs.mkdirSync(path.join(ROOT, 'orders'), { recursive: true });
 const id = `${body.at.replace(/[:.]/g, '-')}-${account}-${side}`;

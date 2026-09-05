@@ -32,7 +32,10 @@
     "contract": "node tools/contract.js",
     "codify": "node tools/codify.js",
     "approver": "node tools/approver.js",
-    "court": "node tools/court.js"
+    "court": "node tools/court.js",
+    "key": "node tools/key.js",
+    "value": "node tools/value.js",
+    "manage": "node tools/manage.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

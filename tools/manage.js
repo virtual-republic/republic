@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+// Acts on an entity, signed by one of its organs.
+//
+//   node tools/manage.js members --entity e-0001 --admit c-0007 --by c-0006
+//   node tools/manage.js organs  --entity e-0001 --set director=c-0006,secretary=c-0007 --by c-0006
+//   node tools/manage.js charter --entity e-0001 --file charters/e-0001.md --by c-0006
+//   node tools/manage.js dissolve --entity e-0001 --by c-0006
+
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { canonical } from './lib/events.js';
+import { sign } from './lib/sshsig.js';
+import { readKey } from './lib/key.js';
+import { mayActFor } from './lib/value.js';
+import { entities, citizens } from './lib/registers.js';
+
+const ROOT = process.cwd();
+const cmd = process.argv[2];
+const a = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i === -1 ? d : process.argv[i + 1]; };
+
+const entity = a('entity'), by = a('by');
+if (!cmd || !entity || !by) {
+  console.error('usage: node tools/manage.js <members|organs|charter|dissolve> --entity <e-0001> --by <citizen> ...');
+  process.exit(2);
+}
+const e = entities(ROOT).find((x) => x.id === entity);
+if (!e) { console.error(`No entity ${entity}.`); process.exit(1); }
+if (!mayActFor(ROOT, by, entity)) { console.error(`${by} is not an organ of ${entity} (art-04/§21/¶2).`); process.exit(1); }
+
+let body = { entity, by, at: new Date().toISOString(), salt: crypto.randomBytes(8).toString('hex') };
+
+if (cmd === 'members') {
+  const admit = (a('admit') || '').split(',').filter(Boolean);
+  const remove = (a('remove') || '').split(',').filter(Boolean);
+  const roll = citizens(ROOT).map((c) => c.id);
+  for (const m of [...admit, ...remove]) if (!roll.includes(m)) { console.error(`${m} is not on the register.`); process.exit(1); }
+  if (admit.length) body = { ...body, kind: 'member.admit', members: admit };
+  else if (remove.length) body = { ...body, kind: 'member.remove', members: remove };
+  else { console.error('give --admit or --remove'); process.exit(2); }
+} else if (cmd === 'organs') {
+  const spec = a('set');
+  if (!spec) { console.error('give --set role=citizen,role=citizen'); process.exit(2); }
+  body = { ...body, kind: 'organ.set', organs: spec.split(',').map((x) => {
+    const [name, holders] = x.split('=');
+    return { name: name.trim(), held_by: (holders || '').split('/').map((h) => h.trim()).filter(Boolean) };
+  }) };
+} else if (cmd === 'charter') {
+  const file = a('file', e.charter || `charters/${entity}.md`);
+  if (!fs.existsSync(path.join(ROOT, file))) { console.error(`No file at ${file}.`); process.exit(1); }
+  body = { ...body, kind: 'charter.amend', text: fs.readFileSync(path.join(ROOT, file), 'utf8') };
+} else if (cmd === 'dissolve') {
+  body = { ...body, kind: 'entity.dissolve' };
+} else { console.error(`unknown command "${cmd}"`); process.exit(2); }
+
+let material;
+try { material = readKey(ROOT, by); } catch (err) { console.error(err.message); process.exit(2); }
+body.signature = sign(canonical(body), material, { namespace: 'republic' });
+
+fs.mkdirSync(path.join(ROOT, 'entity-acts'), { recursive: true });
+const name = `${body.at.replace(/[:.]/g, '-')}-${entity}-${body.kind.replace('.', '-')}`;
+fs.writeFileSync(path.join(ROOT, `entity-acts/${name}.json`), JSON.stringify(body, null, 2) + '\n');
+console.log(`Signed ${body.kind} for ${entity} — entity-acts/${name}.json`);
+console.log('Settle it: node tools/settle.js');

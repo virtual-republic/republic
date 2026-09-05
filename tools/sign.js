@@ -6,14 +6,16 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { canonical } from './lib/events.js';
 import { sign } from './lib/sshsig.js';
+import { readKey } from './lib/key.js';
 
 const [, , proposal, rawChoice, citizen, keyfile] = process.argv;
 if (!proposal || !rawChoice || !citizen) {
   console.error('usage: node tools/sign.js <proposal-id> <choice|a,b,c> <citizen-id> [keyfile]');
   process.exit(2);
 }
-const key = keyfile || `private/${citizen}.pem`;
-if (!fs.existsSync(key)) { console.error(`no key at ${key} — run: node tools/keygen.js ${citizen}`); process.exit(2); }
+let material;
+try { material = keyfile ? fs.readFileSync(keyfile, 'utf8') : readKey(process.cwd(), citizen); }
+catch (e) { console.error(e.message); process.exit(2); }
 
 const choice = rawChoice.includes(',') ? rawChoice.split(',').map((s) => s.trim()) : rawChoice;
 const salt = crypto.randomBytes(16).toString('hex');
@@ -21,7 +23,7 @@ const at = new Date().toISOString();
 // The timestamp is inside the signed payload: a later ballot provably replaces
 // an earlier one, and an old ballot cannot be replayed to undo a change of mind.
 const message = canonical({ proposal, choice, at, salt });
-const ballot = { proposal, choice, at, salt, signature: sign(message, fs.readFileSync(key, 'utf8'), { namespace: 'republic' }) };
+const ballot = { proposal, choice, at, salt, signature: sign(message, material, { namespace: 'republic' }) };
 
 const dir = path.join('ballots', proposal);
 fs.mkdirSync(dir, { recursive: true });

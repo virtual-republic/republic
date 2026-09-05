@@ -15,6 +15,7 @@ import { append } from './lib/events.js';
 import { params } from './lib/params.js';
 import { accounts, mayActFor, ledgerState, loadPending, checkSignature, contracts, contractComplete } from './lib/value.js';
 import { sha256 } from './lib/events.js';
+import yaml from 'js-yaml';
 
 const ROOT = process.cwd();
 const dry = process.argv.includes('--dry-run');
@@ -67,6 +68,75 @@ for (const t of transfers) {
     say(true, `${t.from} → ${t.to}  ${t.quantity} × ${t.instrument}`);
   }
   done(t.path);
+}
+
+// ---- entity acts -------------------------------------------------------------
+//
+//   art-04/§21/¶2  an organ holds only the authority the charter confers
+//   art-04/§21/¶3  a charter must not be inconsistent with this Constitution
+//   art-04/§23/¶1  an entity is dissolved by its charter's procedure, by
+//                  resolution of its members, or by judgment of the Court
+//
+// The register cannot be edited through a prefilled link, so an act on an entity
+// is signed like anything else and applied here.
+
+const acts = loadPending(ROOT, 'entity-acts');
+if (acts.length) console.log(`\nEntity acts (${acts.length})`);
+
+for (const act of acts) {
+  const file = path.join(ROOT, `register/entities/${act.entity}.yml`);
+  if (!fs.existsSync(file)) { say(false, act.file, `no entity ${act.entity}`); continue; }
+
+  const sig = checkSignature(ROOT, act, act.by);
+  if (!sig.ok) { say(false, act.file, sig.error); continue; }
+  if (!mayActFor(ROOT, act.by, act.entity)) { say(false, act.file, `${act.by} is not an organ of ${act.entity} (art-04/§21/¶2)`); continue; }
+
+  const doc = yaml.load(fs.readFileSync(file, 'utf8')) || {};
+  let what = '';
+
+  switch (act.kind) {
+    case 'charter.amend': {
+      const charter = doc.charter || `charters/${act.entity}.md`;
+      if (!dry) {
+        fs.mkdirSync(path.join(ROOT, path.dirname(charter)), { recursive: true });
+        fs.writeFileSync(path.join(ROOT, charter), act.text);
+      }
+      what = `charter of ${act.entity} amended`;
+      break;
+    }
+    case 'organ.set': {
+      doc.organs = act.organs;
+      what = `organs of ${act.entity} set to ${act.organs.map((o) => o.name).join(', ')}`;
+      break;
+    }
+    case 'member.admit': {
+      doc.members = [...new Set([...(doc.members || []), ...[].concat(act.members)])];
+      what = `${[].concat(act.members).join(', ')} admitted to ${act.entity}`;
+      break;
+    }
+    case 'member.remove': {
+      const out = new Set([].concat(act.members));
+      doc.members = (doc.members || []).filter((m) => !out.has(m));
+      what = `${[...out].join(', ')} removed from ${act.entity}`;
+      break;
+    }
+    case 'entity.dissolve': {
+      doc.status = 'dissolved';
+      doc.dissolved = act.at.slice(0, 10);
+      what = `${act.entity} dissolved`;
+      break;
+    }
+    default:
+      say(false, act.file, `unknown act "${act.kind}"`);
+      continue;
+  }
+
+  if (!dry && act.kind !== 'charter.amend') fs.writeFileSync(file, yaml.dump(doc));
+  if (!dry) append(ROOT, { at: act.at, author: act.by, entity: act.entity, kind: act.kind,
+    provision: act.kind === 'entity.dissolve' ? 'art-04/§23/¶1' : 'art-04/§21/¶2',
+    payload: { entity: act.entity, ...(act.members ? { members: act.members } : {}), ...(act.organs ? { organs: act.organs } : {}) } });
+  say(true, what);
+  done(act.path);
 }
 
 // ---- the exchange: one uniform-price auction per instrument ------------------
