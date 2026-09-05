@@ -105,7 +105,7 @@ for (const p of C.proposals) for (const c of [].concat(p.cites || [])) cite(Stri
 // ------------------------------------------------------------------ page ---
 
 const NAV = [['', 'Republic'], ['constitution', 'Constitution'], ['assembly', 'Assembly'],
-             ['law', 'Law'], ['treasury', 'Value'], ['journal', 'Journal'], ['register', 'Register'], ['office', 'Office'], ['ledger', 'Ledger']];
+             ['law', 'Law'], ['court', 'Court'], ['treasury', 'Value'], ['journal', 'Journal'], ['register', 'Register'], ['office', 'Office'], ['ledger', 'Ledger']];
 
 function page(title, body, { on = '', script = '', narrow = false } = {}) {
   return `<!doctype html>
@@ -644,8 +644,8 @@ write('office', page('Office', `
 const statuteMeta = (st) => st.versions.en || Object.values(st.versions)[0] || {};
 
 write('law', page('Law', `
-  <h1>Law in force<span class="sub">Statute is where rates, procedure and detail belong — art-01/§4/¶3.</span></h1>
-  ${C.statutes.length ? `
+  <h1>Law in force<span class="sub">One corpus. The Constitution is the highest law and is listed with the rest — art-01/§3/¶1.</span></h1>
+  ${true ? `
   <div class="row">
     <button class="plain" data-sort="title">title</button>
     <button class="plain" data-sort="enacted">date</button>
@@ -653,15 +653,22 @@ write('law', page('Law', `
     <button class="plain" data-sort="id">identifier</button>
   </div>
   <table id="laws"><thead><tr><th>Statute</th><th>Class</th><th>Version</th><th>In force since</th><th>Cite as</th></tr></thead>
-  <tbody>${C.statutes.map((st) => {
-    const m = statuteMeta(st);
-    return `<tr data-title="${esc(m.title || st.slug)}" data-enacted="${esc(isoDate(m.enacted))}" data-class="${esc(m.class || '')}" data-id="${esc(st.slug)}">
-      <td><a href="${u(`/law/${st.slug}/`)}">${esc(m.title || st.slug)}</a></td>
-      <td class="q">${esc(CLASSES[m.class]?.label || m.class || '')}</td>
-      <td class="q">${m.version || 1}</td>
-      <td class="q">${esc(isoDate(m.enacted))}</td>
-      <td class="q">stat.${esc(st.slug)}</td></tr>`;
-  }).join('')}</tbody></table>`
+  <tbody>${[
+    ...C.constitution.articles.map((a) => ({
+      href: href(a.id), title: a.versions.en.title, cls: a.entrenched ? 'Constitution (entrenched)' : 'Constitution',
+      version: '', when: '', cite: `const.${a.id}`, sortId: a.id,
+    })),
+    ...C.statutes.map((st) => {
+      const m = statuteMeta(st);
+      return { href: u(`/law/${st.slug}/`), title: m.title || st.slug, cls: CLASSES[m.class]?.label || m.class || '',
+        version: m.version || 1, when: isoDate(m.enacted), cite: `stat.${st.slug}`, sortId: st.slug };
+    }),
+  ].map((r) => `<tr data-title="${esc(r.title)}" data-enacted="${esc(r.when)}" data-class="${esc(r.cls)}" data-id="${esc(r.sortId)}">
+      <td><a href="${r.href}">${esc(r.title)}</a></td>
+      <td class="q">${esc(r.cls)}</td>
+      <td class="q">${r.version}</td>
+      <td class="q">${esc(r.when)}</td>
+      <td class="q">${esc(r.cite)}</td></tr>`).join('')}</tbody></table>`
   : '<p class="quiet">Nothing has been enacted yet. A measure that carries becomes law on publication — art-08/§45/¶1.</p>'}`,
   { on: 'law', script: `
   let dir = 1, last = null;
@@ -718,13 +725,19 @@ const instrumentList = [...V.instruments.entries()];
 write('treasury', page('Value', `
   <h1>Value<span class="sub">The ${esc(UNIT)} has no value outside the Republic and may not be sold, redeemed, or exchanged — art-09/§48/¶2.</span></h1>
 
-  <h2>Accounts</h2>
-  <table><thead><tr><th>Account</th><th>Kind</th><th>${esc(UNIT[0].toUpperCase() + UNIT.slice(1))}s</th><th>Instruments</th></tr></thead>
-  <tbody>${[...ACCTS.entries()].map(([id, meta]) => `<tr>
-    <td>${esc(id)}</td><td class="q">${esc(meta.kind)}</td>
-    <td>${V.balances.get(id) || 0}</td>
-    <td class="q">${holdingsOf(id).map(([i, q]) => `${q} × ${esc(i)}`).join('<br>') || '—'}</td></tr>`).join('')}</tbody></table>
-  <p class="note">Issued in total: ${V.issued}. A transfer neither creates nor destroys value — art-02/§12/¶2.</p>
+  <h2>Your accounts</h2>
+  <p id="whoacct" class="quiet">Load a key to see what you hold. See <a href="${u('/key/')}">Your key</a>.</p>
+  <table id="myaccounts" hidden><thead><tr><th>Account</th><th>Kind</th><th>${esc(UNIT[0].toUpperCase() + UNIT.slice(1))}s</th><th>Instruments</th></tr></thead>
+  <tbody></tbody></table>
+  <p class="note">Only the accounts your key may act for are shown. The register itself is public; what you hold is not broadcast on a page anyone may open.</p>
+
+  <h2>In circulation</h2>
+  <table><tbody>
+    <tr><td class="q">Issued in total</td><td>${V.issued}</td></tr>
+    <tr><td class="q">Accounts</td><td>${ACCTS.size}</td></tr>
+    <tr><td class="q">Held by the Treasury</td><td>${V.balances.get(TREASURY) || 0}</td></tr>
+  </tbody></table>
+  <p class="note">A transfer neither creates nor destroys value — art-02/§12/¶2. Every movement is a record in the ledger, which is public.</p>
 
   <h2>Instruments</h2>
   ${instrumentList.length ? `<table><thead><tr><th>Instrument</th><th>Issuer</th><th>Issued</th></tr></thead>
@@ -745,7 +758,18 @@ write('treasury', page('Value', `
 { on: 'treasury', script: IDENT + `
   const accts = await getJSON('${u('/data/accounts.json')}');
   const mine = () => accts.filter((a) => a.id === me || (a.organs || []).some((o) => (o.held_by || []).includes(me)) || (a.id === 'treasury' && a.officer === me));
+  function showMine() {
+    const rows = mine();
+    const t = $('myaccounts');
+    if (!rows.length) { t.hidden = true; $('whoacct').textContent = me ? me + ' holds no account.' : 'Load a key to see what you hold.'; return; }
+    t.hidden = false;
+    $('whoacct').textContent = '';
+    t.querySelector('tbody').innerHTML = rows.map((a) =>
+      '<tr><td>' + a.id + '</td><td class="q">' + a.kind + '</td><td>' + (a.balance || 0) + '</td><td class="q">' +
+      ((a.holdings || []).map((h) => h.quantity + ' × ' + h.instrument).join('<br>') || '—') + '</td></tr>').join('');
+  }
   function fill() {
+    showMine();
     $('tfrom').innerHTML = mine().map((a) => '<option>' + a.id + '</option>').join('') || '<option value="">no account</option>';
     $('tto').innerHTML = accts.map((a) => '<option>' + a.id + '</option>').join('');
     $('tsign').disabled = !(priv && me && mine().length);
@@ -861,6 +885,84 @@ for (const c of CONTRACTS) {
     };` }));
 }
 
+const judges = offs.filter((o) => (o.permissions || []).includes('court.judge'));
+
+write('court', page('Court', `
+  <h1>Court<span class="sub">Decides disputes under this Constitution, reviews acts for consistency with it, and construes the text — art-06/§31/¶2.</span></h1>
+
+  <h2>The bench</h2>
+  ${judges.length ? `<table><thead><tr><th>Judge</th><th>Until</th><th>May</th></tr></thead>
+  <tbody>${judges.map((o) => `<tr><td>${esc(o.holder)}</td><td class="q">${esc(isoDate(o.term_ends))}</td>
+    <td class="q">halt an act within its window · declare an act of no effect · give judgment</td></tr>`).join('')}</tbody></table>
+  <p class="note">The Court may not transfer value and holds no permission over the Treasury — art-06/§31/¶4.</p>`
+  : '<p class="quiet">No Judge is elected, so the Assembly exercises the Court\u2019s functions — art-06/§31/¶1.</p>'}
+
+  <h2>Cases</h2>
+  <ul class="list">${C.judgments.length ? C.judgments.slice().reverse().map((j) =>
+    `<li><a href="${u(`/court/${j.number}/`)}">${esc(j.title || 'Case ' + j.number)}</a>
+      <span class="meta">${esc(j.holding || 'undecided')}</span></li>`).join('')
+    : '<li class="quiet">No case has been brought.</li>'}</ul>
+
+  <h2>Bring a case</h2>
+  <p id="msg" class="msg quiet"></p>
+  <label for="cagainst">The act complained of</label><input type="text" id="cagainst" placeholder="P-0004, or stat.some-statute">
+  <label for="cseek">Seeking</label>
+  <select id="cseek">
+    <option value="construe">that a provision be construed — art-06/§31/¶2</option>
+    <option value="halt">that the act be halted within its window — art-06/§31/¶3</option>
+    <option value="void">that the act be declared of no effect — art-06/§31/¶3</option>
+    <option value="remedy">a remedy under Article 7 — art-07/§25/¶2</option>
+  </select>
+  <label for="cconstrues">Provisions construed, comma separated</label><input type="text" id="cconstrues" placeholder="art-08/§41/¶3">
+  <label for="cground">Ground</label><textarea id="cground" rows="5"></textarea>
+  <div class="row"><button id="cfile" disabled>Prepare the application</button><a id="ccommit" class="button" hidden>Open on GitHub</a></div>
+  <div class="out" id="cout" hidden></div>`,
+{ on: 'court', narrow: true, script: IDENT + `
+  const resolve = await getJSON('${u('/data/resolve.json')}');
+  const next = ${C.judgments.reduce((n, j) => Math.max(n, j.number || 0), 0) + 1};
+  const ok = () => { $('cfile').disabled = !(priv && me); };
+  document.addEventListener('identity', ok); ok();
+  $('cfile').onclick = () => {
+    try {
+      if (!me) throw new Error('load a key that is on the register');
+      const against = $('cagainst').value.trim();
+      const ground = $('cground').value.trim();
+      if (!against) throw new Error('name the act complained of');
+      if (!ground) throw new Error('state the ground');
+      const construes = $('cconstrues').value.split(',').map((s) => s.trim()).filter(Boolean);
+      const bad = construes.filter((c) => !resolve[c] && !resolve['const.' + c]);
+      if (bad.length) throw new Error('does not resolve: ' + bad.join(', '));
+      const today = new Date().toISOString().slice(0, 10);
+      const seeking = $('cseek').value;
+      const md = ['---', 'number: ' + next, 'title: ' + me + ' v ' + against, 'against: ' + against,
+        'applicant: ' + me, 'seeking: ' + seeking, 'filed: ' + today,
+        'construes: [' + construes.join(', ') + ']', 'cites: [art-06/§31/¶2, art-07/§36/¶2]', '---', '',
+        '## § 1  The application', '', '¹ ' + me + ' applies in respect of ' + against + '.', '',
+        '## § 2  Ground', '', '¹ ' + ground, '',
+        '## § 3  Answer', '', '¹ *To be completed by the respondent, or left blank.*', ''].join('\\n');
+      $('cout').hidden = false; $('cout').textContent = md;
+      const slug = String(next).padStart(4, '0') + '-' + against.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      $('ccommit').href = R.commitUrl(meta.repo, meta.branch, 'journal/judgments/' + slug + '.md', md, 'case ' + next);
+      $('ccommit').hidden = false;
+      $('msg').className = 'msg'; $('msg').textContent = 'Prepared. Commit it to bring the case.';
+    } catch (e) { problem('could not file', e); }
+  };` }));
+
+for (const j of C.judgments) {
+  write(`court/${j.number}`, page(j.title || `Case ${j.number}`, `
+    <p class="crumb"><a href="${u('/court/')}">Court</a> · case ${j.number}</p>
+    <h1>${esc(j.title || 'Case ' + j.number)}<span class="sub">${esc(j.holding ? 'decided ' + isoDate(j.decided) + ' — ' + j.holding : 'undecided')} · filed ${esc(isoDate(j.filed))}</span></h1>
+    <table><tbody>
+      <tr><td class="q">Applicant</td><td>${esc(j.applicant || '')}</td></tr>
+      <tr><td class="q">Act complained of</td><td>${link(String(j.against || ''))}</td></tr>
+      <tr><td class="q">Seeking</td><td>${esc(j.seeking || '')}</td></tr>
+      ${j.bench ? `<tr><td class="q">Bench</td><td>${esc(j.bench)}</td></tr>` : ''}
+    </tbody></table>
+    <article class="law">${markdown(j.body)}</article>
+    ${[].concat(j.construes || []).length ? `<h2>Provisions construed</h2><ul class="list">${[].concat(j.construes).map((c) => `<li>${link(String(c))}</li>`).join('')}</ul>` : ''}`,
+  { on: 'court', narrow: true }));
+}
+
 write('journal', page('Journal', `
   <h1>Journal<span class="sub">Publication is promulgation — art-05/§25/¶2.</span></h1>
   <ul class="list">${C.journal.slice().reverse().map((j) =>
@@ -886,6 +988,15 @@ write('register', page('Register', `
     <td class="q">${esc(isoDate(c.admitted))}</td></tr>`).join('')}</tbody></table>
   <p class="quiet">The register names no person; only identifiers appear — art-07/§37/¶2.</p>
 
+  <h2>Form an entity</h2>
+  <p id="emsg" class="msg quiet"></p>
+  <label for="ename">Name</label><input type="text" id="ename">
+  <label for="etype">Type</label><select id="etype"></select>
+  <label for="epurpose">Purpose</label><textarea id="epurpose" rows="3"></textarea>
+  <label for="eunder">Measure that establishes it, if its type requires one</label><input type="text" id="eunder" placeholder="P-0007">
+  <div class="row"><button id="eform" disabled>Prepare</button><a id="ecommit" class="button" hidden>Open on GitHub</a></div>
+  <div class="out" id="eout" hidden></div>
+
   <h2>Entities</h2>
   ${ents.length ? `<table><thead><tr><th>Entity</th><th>Type</th><th>Name</th></tr></thead>
   <tbody>${ents.map((e) => `<tr><td><a href="${u(`/entities/${e.id}/`)}">${esc(e.id)}</a></td>
@@ -896,7 +1007,38 @@ write('register', page('Register', `
   <table><thead><tr><th>No.</th><th>Records</th><th>Root</th></tr></thead>
   <tbody>${checkpoints.slice().reverse().map((c) => `<tr><td>${c.number}</td><td class="q">${c.records}</td>
     <td class="q">${esc(c.root.slice(0, 20))}…</td></tr>`).join('') || '<tr><td colspan="3" class="q">None yet.</td></tr>'}</tbody></table>`,
-  { on: 'register', narrow: true }));
+  { on: 'register', narrow: true, script: IDENT + `
+  const types = meta.parameters.entities.types;
+  const existing = await getJSON('${u('/data/entities.json')}');
+  $('etype').innerHTML = Object.entries(types).map(([k, t]) =>
+    '<option value="' + k + '">' + t.label + (t.formation === 'law' ? ' — requires a carried measure' : ' — as of right') + '</option>').join('');
+  const ok = () => { $('eform').disabled = !(priv && me); };
+  document.addEventListener('identity', ok); ok();
+  $('eform').onclick = () => {
+    try {
+      if (!me) throw new Error('load a key that is on the register');
+      const name = $('ename').value.trim();
+      if (!name) throw new Error('give it a name');
+      const type = $('etype').value, rule = types[type];
+      const under = $('eunder').value.trim();
+      if (rule.formation === 'law' && !under)
+        throw new Error('a ' + type + ' is formed only on a carried measure, and only the Registrar may enter it — art-04/§20/¶3');
+      const id = 'e-' + String(existing.length + 1).padStart(4, '0');
+      const today = new Date().toISOString().slice(0, 10);
+      const yml = ['id: ' + id, 'type: ' + type, 'name: ' + name, 'formed: ' + today, 'formed_by: ' + me,
+        'formed_under: ' + (rule.formation === 'law' ? 'art-04/§20/¶3' : 'art-04/§19/¶1'),
+        ...(under ? ['established_by_measure: ' + under] : []),
+        'charter: charters/' + id + '.md', 'organs:', '  - name: convenor', '    held_by: [' + me + ']',
+        'members: [' + me + ']', 'status: active', ''].join('\\n');
+      $('eout').hidden = false; $('eout').textContent = yml;
+      $('ecommit').href = R.commitUrl(meta.repo, meta.branch, 'register/entities/' + id + '.yml', yml, 'form ' + id);
+      $('ecommit').hidden = false;
+      $('emsg').className = 'msg';
+      $('emsg').textContent = rule.formation === 'law'
+        ? 'Prepared under ' + under + '. Only the Registrar may commit it — art-04/§20/¶3.'
+        : 'Prepared. No permission is required — art-04/§19/¶1. Commit it, then write the charter.';
+    } catch (e) { problem('could not form', e); }
+  };` }));
 
 for (const e of ents) {
   const secs = e.charterBody ? parseCharter(e.charterBody) : [];
@@ -954,6 +1096,7 @@ const treasurer = offs.find((o) => (o.permissions || []).includes('treasury.disb
 fs.writeFileSync(path.join(OUT, 'data/accounts.json'), JSON.stringify([...ACCTS.entries()].map(([id, m]) => ({
   id, kind: m.kind, organs: m.organs || [], ...(id === TREASURY && treasurer ? { officer: treasurer.holder } : {}),
   balance: V.balances.get(id) || 0,
+  holdings: holdingsOf(id).map(([instrument, quantity]) => ({ instrument, quantity })),
 })), null, 2));
 fs.mkdirSync(path.join(OUT, 'data/contracts'), { recursive: true });
 for (const c of CONTRACTS) fs.writeFileSync(path.join(OUT, `data/contracts/${c.id}.txt`), fs.readFileSync(path.join(ROOT, c.file), 'utf8'));

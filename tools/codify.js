@@ -17,11 +17,12 @@ import { append } from './lib/events.js';
 import { offices } from './lib/registers.js';
 
 const ROOT = process.cwd();
+const STATUTES = fs.existsSync(path.join(ROOT, 'journal/statutes')) ? path.join(ROOT, 'journal/statutes') : path.join(ROOT, 'statutes');
 const dry = process.argv.includes('--dry-run');
 const STANDING = ['ordinary', 'organic', 'policy'];
 
 const issues = [];
-const jdir = path.join(ROOT, 'journal');
+const jdir = fs.existsSync(path.join(ROOT, 'journal/issues')) ? path.join(ROOT, 'journal/issues') : path.join(ROOT, 'journal');
 const walk = (d) => { if (!fs.existsSync(d)) return; for (const f of fs.readdirSync(d).sort()) {
   const p = path.join(d, f);
   if (fs.statSync(p).isDirectory()) walk(p);
@@ -49,14 +50,14 @@ for (const j of issues) {
   if (!STANDING.includes(front.class)) { skipped++; continue; }
 
   const slug = (front.title || front.id).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
-  const out = path.join(ROOT, 'statutes', `${slug}.md`);
+  const out = path.join(STATUTES, `${slug}.md`);
   if (fs.existsSync(out)) { skipped++; continue; }
 
   console.log(`  + stat.${slug}  ← ${j.measure}, Journal ${j.number}`);
   made++;
   if (dry) continue;
 
-  fs.mkdirSync(path.join(ROOT, 'statutes'), { recursive: true });
+  fs.mkdirSync(STATUTES, { recursive: true });
   fs.writeFileSync(out, `---
 id: ${slug}
 title: ${front.title || front.id}

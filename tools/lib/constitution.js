@@ -9,11 +9,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 
+// One corpus root: journal/. A repository that has not run tools/migrate.js
+// still works from the old layout.
+export function constitutionDir(root) {
+  const moved = path.join(root, 'journal/constitution');
+  return fs.existsSync(moved) ? moved : path.join(root, 'constitution');
+}
+
 const PARA = /^([¹²³⁴⁵⁶⁷⁸⁹]|\(\d+\))\s+/;
 const SUPER = { '¹': 1, '²': 2, '³': 3, '⁴': 4, '⁵': 5, '⁶': 6, '⁷': 7, '⁸': 8, '⁹': 9 };
 
 export function loadMeta(root) {
-  return yaml.load(fs.readFileSync(path.join(root, 'constitution/meta.yml'), 'utf8'));
+  return yaml.load(fs.readFileSync(path.join(constitutionDir(root), 'meta.yml'), 'utf8'));
 }
 
 function frontmatter(src) {
@@ -64,7 +71,7 @@ export function loadConstitution(root) {
   for (const spec of meta.articles) {
     const versions = {};
     for (const lang of langs) {
-      const file = path.join(root, 'constitution', lang, `${spec.file}.md`);
+      const file = path.join(constitutionDir(root), lang, `${spec.file}.md`);
       if (fs.existsSync(file)) {
         versions[lang] = parseArticle(fs.readFileSync(file, 'utf8'));
       }

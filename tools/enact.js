@@ -19,6 +19,7 @@ import { isoDate } from './lib/corpus.js';
 import { offices } from './lib/registers.js';
 
 const ROOT = process.cwd();
+const STATUTES = fs.existsSync(path.join(ROOT, 'journal/statutes')) ? path.join(ROOT, 'journal/statutes') : path.join(ROOT, 'statutes');
 const id = process.argv[2];
 if (!id) { console.error('usage: node tools/enact.js <measure>'); process.exit(2); }
 
@@ -41,7 +42,7 @@ const body = src.slice(src.indexOf('\n---', 3) + 4).trim();
 
 // --- next issue number -----------------------------------------------------
 
-const journalDir = path.join(ROOT, 'journal');
+const journalDir = fs.existsSync(path.join(ROOT, 'journal/issues')) ? path.join(ROOT, 'journal/issues') : path.join(ROOT, 'journal');
 let highest = 0;
 const walk = (d) => { for (const f of fs.readdirSync(d)) {
   const p = path.join(d, f);
@@ -101,8 +102,8 @@ if (STANDING.includes(front.class)) {
   const amends = front.amends_statute || null;
   const slug = amends || (front.title || id).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
   statuteSlug = slug;
-  fs.mkdirSync(path.join(ROOT, 'statutes'), { recursive: true });
-  const statute = path.join(ROOT, 'statutes', `${slug}.md`);
+  fs.mkdirSync(STATUTES, { recursive: true });
+  const statute = path.join(STATUTES, `${slug}.md`);
   const existed = fs.existsSync(statute);
 
   if (existed && !amends) {
@@ -116,8 +117,8 @@ if (STANDING.includes(front.class)) {
       version = (pmeta.version || 1) + 1;
       history = [].concat(pmeta.history || []).concat([`${pmeta.version || 1}: ${pmeta.measure || '?'} (Journal ${pmeta.journal || '?'})`]);
       // The superseded text survives in the Journal issue that enacted it.
-      fs.mkdirSync(path.join(ROOT, 'statutes/superseded'), { recursive: true });
-      fs.writeFileSync(path.join(ROOT, `statutes/superseded/${slug}.v${pmeta.version || 1}.md`), prior);
+      fs.mkdirSync(path.join(STATUTES, 'superseded'), { recursive: true });
+      fs.writeFileSync(path.join(STATUTES, 'superseded', `${slug}.v${pmeta.version || 1}.md`), prior);
     }
     fs.writeFileSync(statute, `---
 id: ${slug}

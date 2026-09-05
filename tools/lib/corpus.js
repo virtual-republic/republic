@@ -23,12 +23,19 @@ import yaml from 'js-yaml';
 import { loadConstitution, provisionIndex } from './constitution.js';
 
 export const CORPORA = {
-  const: { label_en: 'Constitution', label_fr: 'Constitution', dir: 'constitution' },
-  stat: { label_en: 'Statute', label_fr: 'Loi', dir: 'statutes' },
-  jour: { label_en: 'Journal', label_fr: 'Journal', dir: 'journal' },
-  jdgt: { label_en: 'Judgment', label_fr: 'Arrêt', dir: 'judgments' },
-  prop: { label_en: 'Measure', label_fr: 'Mesure', dir: 'proposals' },
+  const: { label: 'Constitution', dir: 'constitution' },
+  stat: { label: 'Statute', dir: 'statutes' },
+  jour: { label: 'Journal', dir: 'issues' },
+  jdgt: { label: 'Judgment', dir: 'judgments' },
+  prop: { label: 'Measure', dir: 'proposals' },
 };
+
+// One corpus root. Falls back to the old layout if migrate.js has not run.
+export function where(root, kind) {
+  const moved = { const: 'journal/constitution', stat: 'journal/statutes', jdgt: 'journal/judgments', jour: 'journal/issues' }[kind];
+  if (moved && fs.existsSync(path.join(root, moved))) return moved;
+  return { const: 'constitution', stat: 'statutes', jdgt: 'judgments', jour: 'journal' }[kind];
+}
 
 const SUPERS = '¹²³⁴⁵⁶⁷⁸⁹';
 
@@ -117,7 +124,7 @@ export function buildCorpus(root) {
 
   // ---- Statutes -----------------------------------------------------------
   const statutes = [];
-  for (const d of loadDocs(root, 'statutes')) {
+  for (const d of loadDocs(root, where(root, 'stat'))) {
     const [meta, body] = frontmatter(d.src);
     const slug = meta.id || path.basename(d.rel, '.md');
     const lang = meta.lang || (d.rel.startsWith('fr/') ? 'fr' : 'en');
@@ -137,7 +144,7 @@ export function buildCorpus(root) {
 
   // ---- Journal ------------------------------------------------------------
   const journal = [];
-  for (const d of loadDocs(root, 'journal')) {
+  for (const d of loadDocs(root, where(root, 'jour'))) {
     const [meta, body] = frontmatter(d.src);
     const year = isoDate(meta.date).slice(0, 4) || path.dirname(d.rel);
     const issue = { ...meta, date: isoDate(meta.date), year, body: body.trim(), id: `jour.${year}/${meta.number}` };
@@ -148,7 +155,7 @@ export function buildCorpus(root) {
 
   // ---- Judgments ----------------------------------------------------------
   const judgments = [];
-  for (const d of loadDocs(root, 'judgments')) {
+  for (const d of loadDocs(root, where(root, 'jdgt'))) {
     const [meta, body] = frontmatter(d.src);
     const year = isoDate(meta.date).slice(0, 4);
     const j = { ...meta, year, body: body.trim(), id: `jdgt.${year}/${meta.number}` };

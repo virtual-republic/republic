@@ -31,7 +31,8 @@
     "order": "node tools/order.js",
     "contract": "node tools/contract.js",
     "codify": "node tools/codify.js",
-    "approver": "node tools/approver.js"
+    "approver": "node tools/approver.js",
+    "court": "node tools/court.js"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
