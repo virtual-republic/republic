@@ -1,0 +1,22 @@
+{
+  "proposal": "P-0009",
+  "class": "election",
+  "at": "2026-09-13T02:06:31.856Z",
+  "open": false,
+  "closes": "2026-09-12T23:59:59.000Z",
+  "counted": [],
+  "rejected": [],
+  "delegated": [],
+  "outcome": {
+    "rounds": [],
+    "winner": "c-0006",
+    "open": false,
+    "early": null,
+    "cast": 0,
+    "electorate": 1,
+    "quorumNeeded": 1,
+    "quorumMet": false,
+    "carried": false,
+    "office": "treasurer"
+  }
+}
